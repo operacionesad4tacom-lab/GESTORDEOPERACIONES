@@ -266,11 +266,14 @@ async function init() {
 
 async function cargarUsuarios() {
   const users = await SIGO.getUsuarios();
-  ['t-responsable','t-responsable-sec'].forEach(id => {
+  ['t-responsable','t-responsable-sec','e-responsable','e-responsable-sec'].forEach(id => {
     const sel = document.getElementById(id);
+    // Limpiar opciones previas excepto la primera
+    while (sel.options.length > 1) sel.remove(1);
     users.forEach(u => {
       const opt = document.createElement('option');
-      opt.value = u.id; opt.textContent = `${u.grado ? u.grado+' ' : ''}${u.nombre}`;
+      opt.value = u.id;
+      opt.textContent = `${u.grado ? u.grado + ' ' : ''}${u.nombre}`;
       sel.appendChild(opt);
     });
   });
@@ -306,6 +309,7 @@ function renderLista(tareas) {
       <td>${SIGO.badgeEstadoTarea(t.estado)}</td>
       <td>
         <button class="btn btn-sm btn-secondary" onclick="abrirModalEstado('${t.id}','${t.titulo}','${t.estado}')" title="Cambiar estado">↕</button>
+        <button class="btn btn-sm btn-primary" onclick="abrirEditar('${t.id}')" title="Editar">✏️</button>
         <button class="btn btn-sm btn-outline" onclick="verFormatos('${t.id}')" title="Formatos">📎</button>
         <button class="btn btn-sm btn-danger" onclick="archivar('${t.id}')" title="Archivar">🗄</button>
       </td>
@@ -330,7 +334,7 @@ function renderKanban(tareas) {
         </div>
         <div class="kanban-cards">
           ${items.length ? items.map(t => `
-            <div class="kanban-card" onclick="abrirModalEstado('${t.id}','${t.titulo}','${t.estado}')">
+            <div class="kanban-card" onclick="abrirEditar('${t.id}')">
               <div class="kanban-card-title">${t.titulo}</div>
               <div class="kanban-card-meta">
                 ${SIGO.badgePrioridad(t.prioridad)}
@@ -411,6 +415,64 @@ function verFormatos(id) {
   window.location.href = `formatos.html?tarea=${id}`;
 }
 
+async function abrirEditar(id) {
+  // Buscar tarea en los datos ya cargados o pedirla
+  const { data: t, error } = await SIGO.db.from('tareas').select('*').eq('id', id).single();
+  if (error || !t) { SIGO.showToast('❌ Error al cargar tarea', 'danger'); return; }
+
+  // Rellenar campos del modal de edición
+  document.getElementById('e-id').value          = t.id;
+  document.getElementById('e-titulo').value       = t.titulo || '';
+  document.getElementById('e-desc').value         = t.descripcion || '';
+  document.getElementById('e-tipo').value         = t.tipo || 'diaria';
+  document.getElementById('e-prioridad').value    = t.prioridad || 'normal';
+  document.getElementById('e-area').value         = t.area || 'Operaciones';
+  document.getElementById('e-hora-limite').value  = t.hora_limite || '';
+  document.getElementById('e-hora-interna').value = t.hora_limite_interna || '';
+  document.getElementById('e-dia-semana').value   = t.dia_semana || '';
+  document.getElementById('e-dia-mes').value      = t.dia_mes || '';
+  document.getElementById('e-fecha-prog').value   = t.fecha_programada || '';
+  document.getElementById('e-responsable').value  = t.responsable_id || '';
+  document.getElementById('e-responsable-sec').value = t.responsable_secundario_id || '';
+
+  toggleCamposEdicion();
+  SIGO.openModal('modal-editar');
+}
+
+function toggleCamposEdicion() {
+  const tipo = document.getElementById('e-tipo').value;
+  document.getElementById('e-campo-dia-semana').classList.toggle('hidden', tipo !== 'semanal');
+  document.getElementById('e-campo-dia-mes').classList.toggle('hidden', tipo !== 'mensual');
+  document.getElementById('e-campo-fecha-prog').classList.toggle('hidden', tipo !== 'extraordinaria');
+}
+
+async function guardarEdicion() {
+  const id     = document.getElementById('e-id').value;
+  const titulo = document.getElementById('e-titulo').value.trim();
+  if (!titulo) { SIGO.showToast('⚠️ El título es obligatorio', 'warning'); return; }
+
+  const cambios = {
+    titulo,
+    descripcion:              document.getElementById('e-desc').value || null,
+    tipo:                     document.getElementById('e-tipo').value,
+    prioridad:                document.getElementById('e-prioridad').value,
+    area:                     document.getElementById('e-area').value,
+    hora_limite:              document.getElementById('e-hora-limite').value || null,
+    hora_limite_interna:      document.getElementById('e-hora-interna').value || null,
+    dia_semana:               document.getElementById('e-dia-semana').value || null,
+    dia_mes:                  document.getElementById('e-dia-mes').value || null,
+    fecha_programada:         document.getElementById('e-fecha-prog').value || null,
+    responsable_id:           document.getElementById('e-responsable').value || null,
+    responsable_secundario_id:document.getElementById('e-responsable-sec').value || null,
+  };
+
+  await SIGO.actualizarTarea(id, cambios);
+  await SIGO.registrarMovimiento ? null : null; // ya está en actualizarTarea
+  SIGO.showToast('✅ Tarea actualizada correctamente');
+  SIGO.closeModal('modal-editar');
+  await cargarTareas();
+}
+
 async function verHoy() {
   document.getElementById('filtro-estado').value = '';
   document.getElementById('filtro-tipo').value = '';
@@ -422,5 +484,117 @@ async function verHoy() {
 
 init();
 </script>
+
+<!-- MODAL EDITAR TAREA -->
+<div class="modal-overlay" id="modal-editar">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-header" style="background:var(--verde-medio);">
+      <h3>✏️ Editar Tarea</h3>
+      <button class="modal-close" onclick="SIGO.closeModal('modal-editar')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="e-id">
+
+      <div class="form-group">
+        <label>Nombre de la Tarea *</label>
+        <input type="text" id="e-titulo" class="form-control">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Tipo *</label>
+          <select id="e-tipo" class="form-control" onchange="toggleCamposEdicion()">
+            <option value="diaria">Diaria</option>
+            <option value="semanal">Semanal</option>
+            <option value="mensual">Mensual</option>
+            <option value="quincenal">Quincenal</option>
+            <option value="extraordinaria">Extraordinaria</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Prioridad *</label>
+          <select id="e-prioridad" class="form-control">
+            <option value="normal">Normal</option>
+            <option value="alta">Alta</option>
+            <option value="critica">Crítica</option>
+            <option value="informativa">Informativa</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="e-campo-dia-semana" class="form-group hidden">
+        <label>Día de la Semana</label>
+        <select id="e-dia-semana" class="form-control">
+          <option value="">— Seleccionar —</option>
+          <option value="1">Lunes</option>
+          <option value="2">Martes</option>
+          <option value="3">Miércoles</option>
+          <option value="4">Jueves</option>
+          <option value="5">Viernes</option>
+          <option value="6">Sábado</option>
+          <option value="7">Domingo</option>
+        </select>
+      </div>
+
+      <div id="e-campo-dia-mes" class="form-group hidden">
+        <label>Día del Mes <span class="text-muted">(1 – 31)</span></label>
+        <input type="number" id="e-dia-mes" class="form-control" min="1" max="31">
+      </div>
+
+      <div id="e-campo-fecha-prog" class="form-group hidden">
+        <label>Fecha Programada</label>
+        <input type="date" id="e-fecha-prog" class="form-control">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Hora Límite Oficial</label>
+          <input type="time" id="e-hora-limite" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>Hora Límite Interna</label>
+          <input type="time" id="e-hora-interna" class="form-control">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Responsable Principal</label>
+          <select id="e-responsable" class="form-control">
+            <option value="">Sin asignar</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Responsable Secundario</label>
+          <select id="e-responsable-sec" class="form-control">
+            <option value="">Sin asignar</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Área</label>
+        <select id="e-area" class="form-control">
+          <option value="Operaciones">Operaciones</option>
+          <option value="SIP">SIP</option>
+          <option value="OS2">OS2</option>
+          <option value="OS3">OS3</option>
+          <option value="Frontera">Frontera</option>
+          <option value="Administrativo">Administrativo</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Descripción / Instrucciones</label>
+        <textarea id="e-desc" class="form-control" rows="3"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="SIGO.closeModal('modal-editar')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarEdicion()">💾 Guardar Cambios</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
