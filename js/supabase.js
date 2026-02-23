@@ -3,8 +3,8 @@
 // ⚠️ REEMPLAZA estos valores con los tuyos de Supabase
 // ═══════════════════════════════════════════════
 
-const SUPABASE_URL = 'https://TU_PROYECTO.supabase.co';
-const SUPABASE_KEY = 'TU_ANON_KEY_AQUI';
+const SUPABASE_URL = 'https://hkqyzfoxucusboloqitr.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXl6Zm94dWN1c2JvbG9xaXRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE4NTIxMjksImV4cCI6MjA4NzQyODEyOX0.4DGq5w2-T0sDiGkHctYNVx61hyQvHbKxQ8ppUQGC3o8';
 
 // Carga la librería de Supabase (debe estar incluida en el HTML)
 const { createClient } = supabase;
