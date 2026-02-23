@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIGO — Documentos DOE</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <img src="assets/escudo.jpg" alt="Carabineros">
+    <div class="sidebar-logo-text"><span class="title">SIGO</span><span class="subtitle">Gestión Operacional</span></div>
+  </div>
+  <div class="sidebar-unit">4ª Comisaría — Operaciones</div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Principal</div>
+    <a class="nav-item" href="index.html"><span class="nav-icon">🏠</span> Dashboard</a>
+    <a class="nav-item" href="tareas.html"><span class="nav-icon">📋</span> Tareas y Cuentas</a>
+    <a class="nav-item" href="calendario.html"><span class="nav-icon">📅</span> Calendario</a>
+    <div class="nav-section-label">Documentos</div>
+    <a class="nav-item active" href="documentos.html"><span class="nav-icon">📥</span> Documentos DOE</a>
+    <div class="nav-section-label">Control</div>
+    <a class="nav-item" href="rutinas.html"><span class="nav-icon">🔁</span> Rutinas</a>
+    <a class="nav-item" href="formatos.html"><span class="nav-icon">📎</span> Formatos Oficiales</a>
+    <a class="nav-item" href="avisos.html"><span class="nav-icon">📢</span> Avisos</a>
+    <div class="nav-section-label">Admin</div>
+    <a class="nav-item" href="usuarios.html"><span class="nav-icon">👤</span> Usuarios</a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-avatar" id="user-avatar">?</div>
+    <div class="user-info"><div class="name" id="user-name">Cargando...</div><div class="role" id="user-role">—</div></div>
+    <button onclick="SIGO.logout()" style="background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:16px;">⏻</button>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title">Documentos Electrónicos (DOE)</div>
+    <button class="btn btn-primary" onclick="SIGO.openModal('modal-doc')">➕ Registrar DOE</button>
+  </div>
+
+  <div class="content">
+
+    <!-- STATS DOE -->
+    <div class="stats-grid" style="grid-template-columns:repeat(5,1fr);">
+      <div class="stat-card"><div class="stat-icon orange">🟡</div><div class="stat-info"><div class="number" id="cnt-nuevo">0</div><div class="label">Nuevos</div></div></div>
+      <div class="stat-card"><div class="stat-icon green">🟠</div><div class="stat-info"><div class="number" id="cnt-tramite">0</div><div class="label">En Trámite</div></div></div>
+      <div class="stat-card"><div class="stat-icon blue">⏳</div><div class="stat-info"><div class="number" id="cnt-espera">0</div><div class="label">En Espera</div></div></div>
+      <div class="stat-card"><div class="stat-icon green">🔵</div><div class="stat-info"><div class="number" id="cnt-listo">0</div><div class="label">Listos</div></div></div>
+      <div class="stat-card"><div class="stat-icon green">✅</div><div class="stat-info"><div class="number" id="cnt-respondido">0</div><div class="label">Respondidos</div></div></div>
+    </div>
+
+    <!-- FILTROS -->
+    <div class="card mb-4">
+      <div class="card-body" style="padding:12px 20px;">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <select id="filtro-estado-doc" class="form-control" style="width:180px;" onchange="cargarDocs()">
+            <option value="">Todos los estados</option>
+            <option value="nuevo">Nuevo</option>
+            <option value="en_tramite">En Trámite</option>
+            <option value="en_espera">En Espera</option>
+            <option value="parcial">Parcial</option>
+            <option value="listo">Listo</option>
+            <option value="respondido">Respondido</option>
+          </select>
+          <select id="filtro-prioridad-doc" class="form-control" style="width:160px;" onchange="cargarDocs()">
+            <option value="">Todas las prioridades</option>
+            <option value="critica">Crítica</option>
+            <option value="alta">Alta</option>
+            <option value="normal">Normal</option>
+          </select>
+          <input type="text" id="filtro-ncu" class="form-control" style="width:200px;" placeholder="Buscar NCU..." oninput="cargarDocs()">
+        </div>
+      </div>
+    </div>
+
+    <!-- TABLA DOCS -->
+    <div class="card">
+      <div class="card-body" style="padding:0;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>NCU</th>
+                <th>Materia</th>
+                <th>Remitente</th>
+                <th>Recepción</th>
+                <th>Plazo</th>
+                <th>Asignado a</th>
+                <th>Prioridad</th>
+                <th>Consultas</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-docs">
+              <tr><td colspan="10" style="text-align:center;padding:30px;color:#888;">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODAL REGISTRAR DOE -->
+<div class="modal-overlay" id="modal-doc">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>📥 Registrar Documento DOE</h3>
+      <button class="modal-close" onclick="SIGO.closeModal('modal-doc')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>NCU *</label>
+          <input type="text" id="d-ncu" class="form-control" placeholder="Ej: 247409881">
+        </div>
+        <div class="form-group">
+          <label>Tipo</label>
+          <select id="d-tipo" class="form-control">
+            <option value="entrante">Entrante</option>
+            <option value="interno">Interno (Consulta)</option>
+            <option value="respuesta">Respuesta</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Materia / Asunto *</label>
+        <input type="text" id="d-materia" class="form-control" placeholder="Ej: Informe Orden Público">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Remitente</label>
+          <input type="text" id="d-remitente" class="form-control" placeholder="Quién envía">
+        </div>
+        <div class="form-group">
+          <label>Destinatario</label>
+          <input type="text" id="d-destinatario" class="form-control" placeholder="A quién va dirigido">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Fecha Límite</label>
+          <input type="date" id="d-fecha-limite" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>Prioridad</label>
+          <select id="d-prioridad" class="form-control">
+            <option value="normal">Normal</option>
+            <option value="alta">Alta</option>
+            <option value="critica">Crítica</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>DOE Padre (si es consulta interna) — NCU del padre</label>
+        <input type="text" id="d-padre-ncu" class="form-control" placeholder="Dejar vacío si es raíz">
+      </div>
+      <div class="form-group">
+        <label>Observaciones</label>
+        <textarea id="d-obs" class="form-control" rows="2"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="SIGO.closeModal('modal-doc')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarDoc()">💾 Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DETALLE DOE -->
+<div class="modal-overlay" id="modal-detalle-doc">
+  <div class="modal" style="max-width:680px;">
+    <div class="modal-header">
+      <h3 id="detalle-doc-titulo">Detalle DOE</h3>
+      <button class="modal-close" onclick="SIGO.closeModal('modal-detalle-doc')">✕</button>
+    </div>
+    <div class="modal-body" id="detalle-doc-body">Cargando...</div>
+    <div class="modal-footer" id="detalle-doc-footer"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script>
+<script>
+let currentUser = null;
+let todosLosDocs = [];
+
+async function init() {
+  currentUser = await SIGO.authGuard();
+  if (!currentUser) return;
+  const profile = await SIGO.getUserProfile(currentUser.id);
+  document.getElementById('user-name').textContent = profile?.nombre || currentUser.email;
+  document.getElementById('user-role').textContent = profile?.grado || profile?.rol || '';
+  document.getElementById('user-avatar').textContent = (profile?.nombre || 'U')[0].toUpperCase();
+  await cargarDocs();
+}
+
+async function cargarDocs() {
+  const filtros = {};
+  const estado = document.getElementById('filtro-estado-doc').value;
+  if (estado) filtros.estado = estado;
+  const prio = document.getElementById('filtro-prioridad-doc').value;
+  if (prio) filtros.prioridad = prio;
+
+  todosLosDocs = await SIGO.getDocumentos(filtros);
+
+  const ncu = document.getElementById('filtro-ncu').value.toLowerCase();
+  const docs = ncu ? todosLosDocs.filter(d => d.ncu.toLowerCase().includes(ncu) || d.materia.toLowerCase().includes(ncu)) : todosLosDocs;
+
+  // Contadores
+  const estados = ['nuevo','en_tramite','en_espera','listo','respondido'];
+  estados.forEach(e => {
+    const k = e.replace('_','');
+    const el = document.getElementById(`cnt-${k.replace('entramite','tramite').replace('enespera','espera')}`);
+    if (el) el.textContent = todosLosDocs.filter(d => d.estado === e).length;
+  });
+  document.getElementById('cnt-nuevo').textContent = todosLosDocs.filter(d=>d.estado==='nuevo').length;
+  document.getElementById('cnt-tramite').textContent = todosLosDocs.filter(d=>d.estado==='en_tramite').length;
+  document.getElementById('cnt-espera').textContent = todosLosDocs.filter(d=>['en_espera','parcial'].includes(d.estado)).length;
+  document.getElementById('cnt-listo').textContent = todosLosDocs.filter(d=>d.estado==='listo').length;
+  document.getElementById('cnt-respondido').textContent = todosLosDocs.filter(d=>d.estado==='respondido').length;
+
+  const tbody = document.getElementById('tabla-docs');
+  if (!docs.length) {
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#888;">Sin documentos encontrados</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = docs.map(d => {
+    const dias = SIGO.diasHasta(d.fecha_limite);
+    const plazoColor = dias !== null ? (dias < 0 ? 'color:var(--danger)' : dias <= 1 ? 'color:var(--warning)' : '') : '';
+    return `
+      <tr>
+        <td><strong>${d.ncu}</strong></td>
+        <td>${d.materia}</td>
+        <td>${d.remitente || '—'}</td>
+        <td>${SIGO.formatFecha(d.fecha_recepcion)}</td>
+        <td style="${plazoColor}">${d.fecha_limite ? SIGO.formatFecha(d.fecha_limite) + (dias !== null ? `<br><span class="text-sm">${dias < 0 ? '⚠️ Vencido' : dias === 0 ? '🔴 Hoy' : `${dias}d`}</span>` : '') : '—'}</td>
+        <td>${d.asignado?.nombre || '<span class="text-muted">Sin tomar</span>'}</td>
+        <td>${SIGO.badgePrioridad(d.prioridad)}</td>
+        <td id="consultas-${d.id}"><span class="text-muted">—</span></td>
+        <td>${SIGO.badgeEstadoDoc(d.estado)}</td>
+        <td>
+          <button class="btn btn-sm btn-secondary" onclick="verDetalle('${d.id}')">👁 Ver</button>
+          ${d.estado === 'nuevo' ? `<button class="btn btn-sm btn-primary" onclick="tomar('${d.id}')">Tomar</button>` : ''}
+        </td>
+      </tr>`;
+  }).join('');
+
+  // Cargar conteo de consultas para cada doc
+  docs.forEach(d => cargarConsultas(d.id));
+}
+
+async function cargarConsultas(docId) {
+  try {
+    const { data } = await SIGO.db.from('documentos').select('id,estado').eq('documento_padre_id', docId).eq('activa', true);
+    if (!data || !data.length) return;
+    const respondidos = data.filter(h => h.estado === 'respondido').length;
+    const el = document.getElementById(`consultas-${docId}`);
+    if (el) el.innerHTML = `<span style="font-size:12px;">${respondidos}/${data.length} respondidas</span>`;
+  } catch(e) {}
+}
+
+async function tomar(id) {
+  await SIGO.tomarDocumento(id, currentUser.id);
+  SIGO.showToast('📥 Documento tomado');
+  await cargarDocs();
+}
+
+async function verDetalle(id) {
+  const doc = await SIGO.getDocumento(id);
+  document.getElementById('detalle-doc-titulo').textContent = `DOE — NCU: ${doc.ncu}`;
+
+  const hijos = doc.hijos || [];
+  const respondidos = hijos.filter(h => h.estado === 'respondido').length;
+
+  document.getElementById('detalle-doc-body').innerHTML = `
+    <div class="grid-2" style="gap:12px;margin-bottom:16px;">
+      <div><span class="text-sm text-muted">NCU</span><div class="fw-600">${doc.ncu}</div></div>
+      <div><span class="text-sm text-muted">Estado</span><div>${SIGO.badgeEstadoDoc(doc.estado)}</div></div>
+      <div><span class="text-sm text-muted">Materia</span><div class="fw-600">${doc.materia}</div></div>
+      <div><span class="text-sm text-muted">Prioridad</span><div>${SIGO.badgePrioridad(doc.prioridad)}</div></div>
+      <div><span class="text-sm text-muted">Remitente</span><div>${doc.remitente || '—'}</div></div>
+      <div><span class="text-sm text-muted">Fecha Límite</span><div>${SIGO.formatFecha(doc.fecha_limite)}</div></div>
+      <div><span class="text-sm text-muted">Recepción</span><div>${SIGO.formatFechaHora(doc.fecha_recepcion)}</div></div>
+      <div><span class="text-sm text-muted">Asignado a</span><div>${doc.asignado?.nombre || 'Sin tomar'}</div></div>
+    </div>
+
+    ${hijos.length ? `
+    <div class="card" style="margin-top:12px;">
+      <div class="card-header">
+        <h3>📤 Consultas Internas (${respondidos}/${hijos.length} respondidas)</h3>
+        <button class="btn btn-sm btn-primary" onclick="nuevaConsulta('${doc.id}')">+ Consulta</button>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <table>
+          <thead><tr><th>NCU</th><th>Destinatario</th><th>Materia</th><th>Asignado</th><th>Estado</th><th></th></tr></thead>
+          <tbody>
+            ${hijos.map(h => `
+              <tr>
+                <td><strong>${h.ncu}</strong></td>
+                <td>${h.destinatario || '—'}</td>
+                <td>${h.materia}</td>
+                <td>${h.asignado?.nombre || '—'}</td>
+                <td>${SIGO.badgeEstadoDoc(h.estado)}</td>
+                <td><button class="btn btn-sm btn-secondary" onclick="cambiarEstadoHijo('${h.id}','${doc.id}')">↕</button></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>` : `
+    <div style="margin-top:12px;">
+      <button class="btn btn-secondary" onclick="nuevaConsulta('${doc.id}')">📤 Agregar Consulta Interna</button>
+    </div>`}
+
+    <div style="margin-top:14px;">
+      <label class="text-sm text-muted fw-600">Cambiar Estado del DOE Principal</label>
+      <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
+        ${['en_tramite','en_espera','listo','respondido','archivado'].map(e =>
+          `<button class="btn btn-sm btn-outline" onclick="cambiarEstadoPrincipal('${doc.id}','${e}')">${SIGO.badgeEstadoDoc(e).replace(/<[^>]+>/g,'').trim()}</button>`
+        ).join('')}
+      </div>
+    </div>`;
+
+  SIGO.openModal('modal-detalle-doc');
+}
+
+function nuevaConsulta(padreId) {
+  document.getElementById('d-padre-ncu').value = padreId;
+  document.getElementById('d-tipo').value = 'interno';
+  SIGO.closeModal('modal-detalle-doc');
+  SIGO.openModal('modal-doc');
+}
+
+async function cambiarEstadoPrincipal(id, estado) {
+  await SIGO.actualizarEstadoDocumento(id, estado, currentUser.id);
+  SIGO.showToast('✅ Estado actualizado');
+  SIGO.closeModal('modal-detalle-doc');
+  await cargarDocs();
+}
+
+async function cambiarEstadoHijo(hijoId, padreId) {
+  const nuevoEstado = prompt('Nuevo estado (respondido / en_tramite / en_espera / archivado):');
+  if (!nuevoEstado) return;
+  await SIGO.actualizarEstadoDocumento(hijoId, nuevoEstado, currentUser.id);
+  await SIGO.verificarConsolidacion(padreId, currentUser.id);
+  SIGO.showToast('✅ Estado actualizado');
+  SIGO.closeModal('modal-detalle-doc');
+  await cargarDocs();
+}
+
+async function guardarDoc() {
+  const ncu = document.getElementById('d-ncu').value.trim();
+  const materia = document.getElementById('d-materia').value.trim();
+  if (!ncu || !materia) { SIGO.showToast('⚠️ NCU y Materia son obligatorios', 'warning'); return; }
+
+  let padreid = null;
+  const padreNcu = document.getElementById('d-padre-ncu').value.trim();
+  if (padreNcu) {
+    const { data } = await SIGO.db.from('documentos').select('id').eq('id', padreNcu).single();
+    if (data) padreid = data.id;
+  }
+
+  const doc = {
+    ncu, materia,
+    tipo: document.getElementById('d-tipo').value,
+    remitente: document.getElementById('d-remitente').value,
+    destinatario: document.getElementById('d-destinatario').value,
+    fecha_limite: document.getElementById('d-fecha-limite').value || null,
+    prioridad: document.getElementById('d-prioridad').value,
+    documento_padre_id: padreid,
+    creado_por: currentUser.id,
+    estado: 'nuevo',
+    activa: true,
+    fecha_recepcion: new Date().toISOString()
+  };
+
+  await SIGO.crearDocumento(doc);
+  SIGO.showToast('✅ DOE registrado');
+  SIGO.closeModal('modal-doc');
+  await cargarDocs();
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIGO — Dashboard</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <img src="assets/escudo.jpg" alt="Carabineros">
+    <div class="sidebar-logo-text">
+      <span class="title">SIGO</span>
+      <span class="subtitle">Gestión Operacional</span>
+    </div>
+  </div>
+  <div class="sidebar-unit" id="sidebar-unit">4ª Comisaría — Operaciones</div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Principal</div>
+    <a class="nav-item active" href="index.html"><span class="nav-icon">🏠</span> Dashboard</a>
+    <a class="nav-item" href="tareas.html"><span class="nav-icon">📋</span> Tareas y Cuentas <span class="nav-badge" id="badge-tareas">0</span></a>
+    <a class="nav-item" href="calendario.html"><span class="nav-icon">📅</span> Calendario</a>
+    <div class="nav-section-label">Documentos</div>
+    <a class="nav-item" href="documentos.html"><span class="nav-icon">📥</span> Documentos DOE <span class="nav-badge" id="badge-docs">0</span></a>
+    <div class="nav-section-label">Control</div>
+    <a class="nav-item" href="rutinas.html"><span class="nav-icon">🔁</span> Rutinas <span class="nav-badge" id="badge-rutinas">0</span></a>
+    <a class="nav-item" href="formatos.html"><span class="nav-icon">📎</span> Formatos Oficiales</a>
+    <a class="nav-item" href="avisos.html"><span class="nav-icon">📢</span> Avisos</a>
+    <div class="nav-section-label">Admin</div>
+    <a class="nav-item" href="usuarios.html"><span class="nav-icon">👤</span> Usuarios</a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-avatar" id="user-avatar">?</div>
+    <div class="user-info">
+      <div class="name" id="user-name">Cargando...</div>
+      <div class="role" id="user-role">—</div>
+    </div>
+    <button onclick="SIGO.logout()" style="background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:16px;" title="Cerrar sesión">⏻</button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title">Dashboard Operacional</div>
+    <div class="topbar-date">
+      <div class="fecha" id="topbar-fecha"></div>
+      <div id="topbar-hora"></div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- AVISOS URGENTES -->
+    <div id="avisos-urgentes"></div>
+
+    <!-- STATS -->
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon green">📋</div>
+        <div class="stat-info"><div class="number" id="stat-tareas-hoy">—</div><div class="label">Tareas Hoy</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon red">⏰</div>
+        <div class="stat-info"><div class="number" id="stat-tareas-pend">—</div><div class="label">Pendientes</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon orange">📥</div>
+        <div class="stat-info"><div class="number" id="stat-docs-nuevos">—</div><div class="label">DOE Sin Tomar</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon red">🔁</div>
+        <div class="stat-info"><div class="number" id="stat-rutinas">—</div><div class="label">Rutinas Atrasadas</div></div>
+      </div>
+      <div class="stat-card" style="cursor:pointer;" onclick="window.location.href='tareas.html'">
+        <div class="ico-ring" style="padding:4px 8px;">
+          <div class="ico-circle" id="ico-circle" style="--pct:0%;width:66px;height:66px;">
+            <div class="ico-inner" style="width:48px;height:48px;font-size:16px;" id="ico-val">—%</div>
+          </div>
+        </div>
+        <div class="stat-info"><div class="label" style="font-size:13px;font-weight:600;">Índice de Cumplimiento</div><div class="label">ICO del Día</div></div>
+      </div>
+    </div>
+
+    <!-- GRID PRINCIPAL -->
+    <div class="grid-2-1" style="gap:20px;margin-bottom:20px;">
+
+      <!-- TAREAS HOY -->
+      <div class="card">
+        <div class="card-header">
+          <h3>📋 Tareas de Hoy</h3>
+          <a href="tareas.html" class="btn btn-sm btn-secondary">Ver todo</a>
+        </div>
+        <div class="card-body" style="padding:0;">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tarea</th>
+                  <th>Hora Límite</th>
+                  <th>Responsable</th>
+                  <th>Estado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="tabla-tareas-hoy">
+                <tr><td colspan="5" style="text-align:center;padding:20px;color:#888;">Cargando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SIDEBAR DERECHO -->
+      <div style="display:flex;flex-direction:column;gap:16px;">
+
+        <!-- RUTINAS -->
+        <div class="card">
+          <div class="card-header">
+            <h3>🔁 Rutinas</h3>
+            <a href="rutinas.html" class="btn btn-sm btn-secondary">Ver</a>
+          </div>
+          <div class="card-body" style="padding:12px 16px;">
+            <div id="lista-rutinas-dash">
+              <div style="text-align:center;color:#888;font-size:13px;">Cargando...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DOE SIN TOMAR -->
+        <div class="card">
+          <div class="card-header">
+            <h3>📥 DOE Sin Tomar</h3>
+            <a href="documentos.html" class="btn btn-sm btn-secondary">Ver</a>
+          </div>
+          <div class="card-body" style="padding:12px 16px;" id="doe-sin-tomar">
+            <div style="text-align:center;color:#888;font-size:13px;">Cargando...</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- AVISOS INFORMATIVOS -->
+    <div class="card">
+      <div class="card-header">
+        <h3>📢 Información Permanente</h3>
+        <a href="avisos.html" class="btn btn-sm btn-secondary">Gestionar</a>
+      </div>
+      <div class="card-body" id="avisos-info">
+        <div style="text-align:center;color:#888;font-size:13px;">Cargando...</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script>
+<script>
+let currentUser = null;
+
+async function init() {
+  currentUser = await SIGO.authGuard();
+  if (!currentUser) return;
+
+  const profile = await SIGO.getUserProfile(currentUser.id);
+  document.getElementById('user-name').textContent = profile?.nombre || currentUser.email;
+  document.getElementById('user-role').textContent = profile?.grado || profile?.rol || '';
+  document.getElementById('user-avatar').textContent = (profile?.nombre || 'U')[0].toUpperCase();
+
+  actualizarReloj();
+  setInterval(actualizarReloj, 1000);
+
+  await Promise.all([
+    cargarMetricas(),
+    cargarTareasHoy(),
+    cargarRutinas(),
+    cargarDoeSinTomar(),
+    cargarAvisos()
+  ]);
+}
+
+function actualizarReloj() {
+  const ahora = new Date();
+  document.getElementById('topbar-fecha').textContent = ahora.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  document.getElementById('topbar-hora').textContent = ahora.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+async function cargarMetricas() {
+  try {
+    const m = await SIGO.getMetricasHoy();
+    document.getElementById('stat-tareas-hoy').textContent = m.tareasTotal;
+    document.getElementById('stat-tareas-pend').textContent = m.tareasTotal - m.tareasFinalizadas;
+    document.getElementById('stat-docs-nuevos').textContent = m.docsNuevos;
+    document.getElementById('stat-rutinas').textContent = m.rutinasAtrasadas;
+    document.getElementById('ico-val').textContent = m.ico + '%';
+    document.getElementById('ico-circle').style.setProperty('--pct', m.ico + '%');
+    document.getElementById('badge-tareas').textContent = m.tareasTotal - m.tareasFinalizadas;
+    document.getElementById('badge-docs').textContent = m.docsNuevos;
+    document.getElementById('badge-rutinas').textContent = m.rutinasAtrasadas;
+  } catch(e) { console.error(e); }
+}
+
+async function cargarTareasHoy() {
+  try {
+    const hoy = new Date().toISOString().split('T')[0];
+    const tareas = await SIGO.getTareasDelDia(hoy);
+    const tbody = document.getElementById('tabla-tareas-hoy');
+    if (!tareas.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#888;">Sin tareas para hoy</td></tr>';
+      return;
+    }
+    tbody.innerHTML = tareas.map(t => `
+      <tr>
+        <td><strong>${t.titulo}</strong><br><span class="text-sm text-muted">${t.area || ''}</span></td>
+        <td><strong>${t.hora_limite || '—'}</strong><br><span class="text-sm text-muted">Int: ${t.hora_limite_interna || '—'}</span></td>
+        <td>${t.responsable?.nombre || '—'}</td>
+        <td>${SIGO.badgeEstadoTarea(t.estado)}</td>
+        <td>
+          ${t.estado !== 'finalizada' ? `<button class="btn btn-sm btn-primary" onclick="marcarFinalizada('${t.id}')">✓</button>` : ''}
+        </td>
+      </tr>
+    `).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function marcarFinalizada(id) {
+  await SIGO.actualizarEstadoTarea(id, 'finalizada', currentUser.id);
+  SIGO.showToast('✅ Tarea marcada como finalizada');
+  await Promise.all([cargarMetricas(), cargarTareasHoy()]);
+}
+
+async function cargarRutinas() {
+  try {
+    await SIGO.verificarRutinasvencidas();
+    const rutinas = await SIGO.getRutinas();
+    const el = document.getElementById('lista-rutinas-dash');
+    if (!rutinas.length) { el.innerHTML = '<div style="text-align:center;color:#888;font-size:13px;">Sin rutinas configuradas</div>'; return; }
+    el.innerHTML = rutinas.slice(0, 6).map(r => {
+      const color = r.estado === 'atrasada' ? '#c0392b' : r.estado === 'proxima' ? '#e67e22' : '#04742c';
+      return `
+        <div class="rutina-item">
+          <div class="rutina-status-dot" style="background:${color}"></div>
+          <div class="rutina-info">
+            <div class="name">${r.nombre}</div>
+            <div class="meta">Últ: ${SIGO.formatFecha(r.ultima_actualizacion)} · ${r.frecuencia}</div>
+          </div>
+          ${r.estado === 'atrasada' ? `<button class="btn btn-sm btn-primary" onclick="actualizarRutina('${r.id}')">↻</button>` : ''}
+        </div>`;
+    }).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function actualizarRutina(id) {
+  await SIGO.actualizarRutina(id, currentUser.id);
+  SIGO.showToast('✅ Rutina actualizada');
+  await cargarRutinas();
+  await cargarMetricas();
+}
+
+async function cargarDoeSinTomar() {
+  try {
+    const docs = await SIGO.getDocumentos({ estado: 'nuevo' });
+    const el = document.getElementById('doe-sin-tomar');
+    if (!docs.length) { el.innerHTML = '<div style="text-align:center;color:#888;font-size:13px;">✅ Sin DOE pendientes</div>'; return; }
+    el.innerHTML = docs.slice(0, 4).map(d => `
+      <div style="padding:8px 0;border-bottom:1px solid var(--border);">
+        <div style="font-size:12px;font-weight:600;">NCU: ${d.ncu}</div>
+        <div style="font-size:11px;color:var(--text-secondary);">${d.materia}</div>
+        <div style="margin-top:4px;">
+          ${SIGO.badgePrioridad(d.prioridad)}
+          <button class="btn btn-sm btn-primary" style="margin-left:6px;" onclick="tomarDoe('${d.id}')">Tomar</button>
+        </div>
+      </div>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function tomarDoe(id) {
+  await SIGO.tomarDocumento(id, currentUser.id);
+  SIGO.showToast('📥 Documento tomado. Redirigiendo...');
+  setTimeout(() => window.location.href = 'documentos.html', 1000);
+}
+
+async function cargarAvisos() {
+  try {
+    const avisos = await SIGO.getAvisos();
+    const urgentes = avisos.filter(a => a.tipo === 'urgente');
+    const resto = avisos.filter(a => a.tipo !== 'urgente');
+
+    if (urgentes.length) {
+      document.getElementById('avisos-urgentes').innerHTML = urgentes.map(a => `
+        <div class="alert alert-danger" style="margin-bottom:12px;">
+          <span>🚨</span>
+          <div><strong>${a.titulo}</strong><br>${a.contenido}</div>
+        </div>`).join('');
+    }
+
+    const el = document.getElementById('avisos-info');
+    if (!resto.length) { el.innerHTML = '<div style="text-align:center;color:#888;font-size:13px;">Sin avisos activos</div>'; return; }
+    el.innerHTML = `<div class="grid-3" style="gap:12px;">` + resto.map(a => `
+      <div class="aviso-item aviso-${a.tipo}">
+        <div class="aviso-title">${a.titulo}</div>
+        <div class="aviso-text">${a.contenido}</div>
+        <div class="aviso-meta">Vigente hasta: ${SIGO.formatFecha(a.fecha_vigencia)} · ${a.publicado_por?.nombre || ''}</div>
+      </div>`).join('') + '</div>';
+  } catch(e) { console.error(e); }
+}
+
+init();
+</script>
+</body>
+</html>

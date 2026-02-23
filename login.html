@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIGO — Acceso</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    body { background: linear-gradient(135deg, #04742c 0%, #2d8b4d 100%); }
+    .pattern {
+      position: fixed; inset: 0; opacity: 0.04;
+      background-image: repeating-linear-gradient(45deg, #fff 0, #fff 1px, transparent 0, transparent 50%);
+      background-size: 20px 20px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="pattern"></div>
+  <div class="login-page">
+    <div class="login-card">
+      <div class="login-logo">
+        <img src="assets/escudo.jpg" alt="Carabineros de Chile">
+        <h1>SIGO</h1>
+        <p>Sistema Integral de Gestión Operacional<br><strong>4ª Comisaría</strong></p>
+      </div>
+
+      <div id="error-msg" class="alert alert-danger hidden">
+        <span>⚠️</span> <span id="error-text">Credenciales incorrectas.</span>
+      </div>
+
+      <div class="form-group">
+        <label>Correo Institucional</label>
+        <input type="email" id="email" class="form-control" placeholder="usuario@carabineros.cl" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label>Contraseña</label>
+        <input type="password" id="password" class="form-control" placeholder="••••••••" autocomplete="current-password">
+      </div>
+
+      <button class="btn btn-primary w-100" id="btn-login" onclick="handleLogin()">
+        🔐 Ingresar al Sistema
+      </button>
+
+      <p class="text-sm text-muted" style="text-align:center;margin-top:16px;">
+        ORDEN Y PATRIA — Uso exclusivo personal autorizado
+      </p>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase.js"></script>
+  <script>
+    async function handleLogin() {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const btn = document.getElementById('btn-login');
+      const errDiv = document.getElementById('error-msg');
+      const errTxt = document.getElementById('error-text');
+
+      if (!email || !password) {
+        errDiv.classList.remove('hidden');
+        errTxt.textContent = 'Ingrese correo y contraseña.';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Verificando...';
+      errDiv.classList.add('hidden');
+
+      try {
+        await SIGO.login(email, password);
+        window.location.href = 'index.html';
+      } catch (e) {
+        errDiv.classList.remove('hidden');
+        errTxt.textContent = 'Credenciales incorrectas. Intente nuevamente.';
+        btn.disabled = false;
+        btn.textContent = '🔐 Ingresar al Sistema';
+      }
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Enter') handleLogin();
+    });
+
+    // Si ya está logueado, redirigir
+    (async () => {
+      const user = await SIGO.getUser();
+      if (user) window.location.href = 'index.html';
+    })();
+  </script>
+</body>
+</html>
