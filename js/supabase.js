@@ -85,81 +85,12 @@ async function actualizarEstadoTarea(id, estado, userId) {
   await registrarMovimiento(userId, 'tarea', id, `estado_${estado}`, `Estado cambiado a ${estado}`);
 }
 
-// Revisa todas las tareas finalizadas y las vuelve a "pendiente"
-// si ya corresponde ejecutarlas según su tipo y fecha/día actual.
-async function resetearTareasVencidas() {
-  const ahora      = new Date();
-  const diaSemana  = ahora.getDay() === 0 ? 7 : ahora.getDay(); // 1=Lun … 7=Dom
-  const diaMes     = ahora.getDate();
-  const fechaHoy   = ahora.toISOString().split('T')[0];
-
-  // Traer todas las tareas finalizadas (activas)
-  const { data: tareas } = await db
-    .from('tareas')
-    .select('id, tipo, dia_semana, dia_mes, fecha_programada, ultima_realizacion')
-    .eq('estado', 'finalizada')
-    .eq('activa', true);
-
-  if (!tareas || tareas.length === 0) return;
-
-  const aResetear = [];
-
-  for (const t of tareas) {
-    const ultimaFecha = t.ultima_realizacion
-      ? new Date(t.ultima_realizacion).toISOString().split('T')[0]
-      : null;
-
-    // Si ya fue realizada HOY → no tocar
-    if (ultimaFecha === fechaHoy) continue;
-
-    let correspondeHoy = false;
-
-    if (t.tipo === 'diaria') {
-      // Corresponde todos los días → si no fue realizada hoy, resetear
-      correspondeHoy = true;
-    } else if (t.tipo === 'semanal' && t.dia_semana == diaSemana) {
-      correspondeHoy = true;
-    } else if (t.tipo === 'mensual' && t.dia_mes == diaMes) {
-      correspondeHoy = true;
-    } else if (t.tipo === 'quincenal' && (diaMes === 1 || diaMes === 15)) {
-      correspondeHoy = true;
-    } else if (t.tipo === 'extraordinaria' && t.fecha_programada === fechaHoy) {
-      correspondeHoy = true;
-    }
-
-    if (correspondeHoy) aResetear.push(t.id);
-  }
-
-  if (aResetear.length === 0) return;
-
-  // Resetear en lote
-  await db
-    .from('tareas')
-    .update({ estado: 'pendiente', updated_at: new Date().toISOString() })
-    .in('id', aResetear);
+async function archivarTarea(id, userId) {
+  await actualizarTarea(id, { activa: false, estado: 'archivada' });
+  await registrarMovimiento(userId, 'tarea', id, 'archivada', 'Tarea archivada');
 }
 
-async function getTareasDelDia(fecha) {
-  // Primero resetear las que correspondan para hoy
-  await resetearTareasVencidas();
-
-  const d = new Date(fecha + 'T12:00:00');
-  const diaSemana = d.getDay() === 0 ? 7 : d.getDay();
-  const diaMes    = d.getDate();
-
-  const { data, error } = await db.from('tareas').select(`
-    *, 
-    responsable:users!responsable_id(nombre, grado)
-  `)
-  .eq('activa', true)
-  .or(`tipo.eq.diaria,and(tipo.eq.semanal,dia_semana.eq.${diaSemana}),and(tipo.eq.mensual,dia_mes.eq.${diaMes}),and(tipo.eq.quincenal,dia_mes.in.(1,15)),and(tipo.eq.extraordinaria,fecha_programada.eq.${fecha})`)
-  .order('hora_limite');
-
-  if (error) throw error;
-  return data || [];
-}
-
-
+// ─── DOCUMENTOS DOE ──────────────────────────────
 async function getDocumentos(filtros = {}) {
   let q = db.from('documentos').select(`
     *,
