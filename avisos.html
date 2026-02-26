@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIGO — Avisos e Información</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <img src="assets/escudo.jpg" alt="Carabineros">
+    <div class="sidebar-logo-text"><span class="title">SIGO</span><span class="subtitle">Gestión Operacional</span></div>
+  </div>
+  <div class="sidebar-unit">4ª Comisaría — Operaciones</div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Principal</div>
+    <a class="nav-item" href="index.html"><span class="nav-icon">🏠</span> Vista de Turno</a>
+    <a class="nav-item" href="tareas.html"><span class="nav-icon">📋</span> Tareas y Cuentas</a>
+    <a class="nav-item" href="calendario.html"><span class="nav-icon">📅</span> Calendario</a>
+    <div class="nav-section-label">Gestiones</div>
+    <a class="nav-item" href="gestiones.html"><span class="nav-icon">🔵</span> Gestiones</a>
+    <div class="nav-section-label">Documentos</div>
+    <a class="nav-item" href="documentos.html"><span class="nav-icon">📥</span> Documentos DOE</a>
+    <div class="nav-section-label">Control</div>
+    <a class="nav-item" href="rutinas.html"><span class="nav-icon">🔁</span> Rutinas</a>
+    <a class="nav-item" href="formatos.html"><span class="nav-icon">📎</span> Formatos Oficiales</a>
+    <a class="nav-item active" href="avisos.html"><span class="nav-icon">📢</span> Avisos</a>
+    <div class="nav-section-label">Admin</div>
+    <a class="nav-item" href="usuarios.html"><span class="nav-icon">👤</span> Usuarios</a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-avatar" id="user-avatar">?</div>
+    <div class="user-info"><div class="name" id="user-name">Cargando...</div><div class="role" id="user-role">—</div></div>
+    <button onclick="SIGO.logout()" style="background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:16px;">⏻</button>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <button class="btn-hamburger" onclick="SIGO.toggleSidebar()">☰</button>
+    <div class="topbar-title">Información Permanente y Avisos</div>
+    <button class="btn btn-primary" onclick="SIGO.openModal('modal-aviso')">➕ Nuevo Aviso</button>
+  </div>
+
+  <div class="content">
+
+    <div class="tabs">
+      <button class="tab active" onclick="filtrar('todos', this)">Todos</button>
+      <button class="tab" onclick="filtrar('urgente', this)">🚨 Urgentes</button>
+      <button class="tab" onclick="filtrar('informativa', this)">ℹ️ Informativos</button>
+      <button class="tab" onclick="filtrar('recordatorio', this)">📌 Recordatorios</button>
+    </div>
+
+    <div id="lista-avisos">
+      <div style="text-align:center;padding:30px;color:#aaa;">Cargando...</div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL AVISO -->
+<div class="modal-overlay" id="modal-aviso">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>📢 Nuevo Aviso</h3>
+      <button class="modal-close" onclick="SIGO.closeModal('modal-aviso')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Título *</label>
+        <input type="text" id="a-titulo" class="form-control" placeholder="Título del aviso">
+      </div>
+      <div class="form-group">
+        <label>Contenido *</label>
+        <textarea id="a-contenido" class="form-control" rows="4" placeholder="Descripción completa..."></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Tipo</label>
+          <select id="a-tipo" class="form-control">
+            <option value="informativa">Informativo</option>
+            <option value="urgente">Urgente</option>
+            <option value="recordatorio">Recordatorio</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Área Destinataria</label>
+          <select id="a-area" class="form-control">
+            <option value="todos">Todos</option>
+            <option value="Operaciones">Operaciones</option>
+            <option value="SIP">SIP</option>
+            <option value="OS2">OS2</option>
+            <option value="OS3">OS3</option>
+            <option value="Frontera">Frontera</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Vigente Hasta *</label>
+        <input type="date" id="a-vigencia" class="form-control">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="SIGO.closeModal('modal-aviso')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarAviso()">💾 Publicar</button>
+    </div>
+  </div>
+</div>
+
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="SIGO.toggleSidebar()"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script>
+<script>
+let currentUser = null;
+let todosAvisos = [];
+let filtroActivo = 'todos';
+let avisosMostrados = 10;
+
+async function init() {
+  currentUser = await SIGO.authGuard();
+  if (!currentUser) return;
+  const profile = await SIGO.getUserProfile(currentUser.id);
+  document.getElementById('user-name').textContent = profile?.nombre || currentUser.email;
+  document.getElementById('user-role').textContent = profile?.grado || profile?.rol || '';
+  document.getElementById('user-avatar').textContent = (profile?.nombre || 'U')[0].toUpperCase();
+
+  // Default vigencia = 7 días
+  const d = new Date(); d.setDate(d.getDate() + 7);
+  document.getElementById('a-vigencia').value = d.toISOString().split('T')[0];
+
+  await cargarAvisos();
+}
+
+async function cargarAvisos() {
+  avisosMostrados = 10;
+  todosAvisos = await SIGO.getAvisos();
+  renderAvisos();
+}
+
+function filtrar(tipo, btn) {
+  filtroActivo = tipo;
+  avisosMostrados = 10;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  renderAvisos();
+}
+
+function mostrarMasAvisos() {
+  avisosMostrados += 10;
+  renderAvisos();
+}
+
+function renderAvisos() {
+  let lista = filtroActivo === 'todos' ? todosAvisos : todosAvisos.filter(a => a.tipo === filtroActivo);
+
+  // Ordenar: urgentes primero, luego por fecha descendente
+  lista = lista.sort((a, b) => {
+    if (a.tipo === 'urgente' && b.tipo !== 'urgente') return -1;
+    if (b.tipo === 'urgente' && a.tipo !== 'urgente') return 1;
+    return new Date(b.created_at) - new Date(a.created_at);
+  });
+
+  const el = document.getElementById('lista-avisos');
+
+  if (!lista.length) {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;font-size:14px;">Sin avisos en esta categoría</div>';
+    return;
+  }
+
+  const mostrar = lista.slice(0, avisosMostrados);
+  const hayMas = lista.length > avisosMostrados;
+
+  const iconoMap = { urgente: '🚨', informativa: 'ℹ️', recordatorio: '📌' };
+  el.innerHTML = mostrar.map(a => `
+    <div class="aviso-item aviso-${a.tipo}" style="display:flex;gap:12px;margin-bottom:10px;">
+      <span style="font-size:22px;">${iconoMap[a.tipo] || '📢'}</span>
+      <div style="flex:1;">
+        <div class="aviso-title">${a.titulo} ${a.area !== 'todos' ? `<span class="badge badge-normal" style="margin-left:6px;">${a.area}</span>` : ''}</div>
+        <div class="aviso-text" style="margin-top:4px;">${a.contenido}</div>
+        <div class="aviso-meta">
+          Publicado por: ${a.publicado_por?.nombre || '—'} · 
+          Vigente hasta: ${SIGO.formatFecha(a.fecha_vigencia)}
+        </div>
+      </div>
+      <button class="btn btn-sm btn-danger" onclick="archivarAviso('${a.id}')" title="Archivar">✕</button>
+    </div>`).join('');
+
+  if (hayMas) {
+    el.innerHTML += `<div style="text-align:center;padding:12px;">
+      <button class="btn btn-outline" onclick="mostrarMasAvisos()">
+        Ver más (${lista.length - avisosMostrados} restantes)
+      </button>
+    </div>`;
+  }
+}
+
+async function guardarAviso() {
+  const titulo = document.getElementById('a-titulo').value.trim();
+  const contenido = document.getElementById('a-contenido').value.trim();
+  const vigencia = document.getElementById('a-vigencia').value;
+  if (!titulo || !contenido || !vigencia) {
+    SIGO.showToast('⚠️ Completa los campos obligatorios', 'warning');
+    return;
+  }
+  await SIGO.crearAviso({
+    titulo, contenido,
+    tipo: document.getElementById('a-tipo').value,
+    area: document.getElementById('a-area').value,
+    fecha_vigencia: vigencia,
+    publicado_por: currentUser.id,
+    activa: true
+  });
+  SIGO.showToast('✅ Aviso publicado');
+  SIGO.closeModal('modal-aviso');
+  await cargarAvisos();
+}
+
+async function archivarAviso(id) {
+  if (!confirm('¿Archivar este aviso?')) return;
+  await SIGO.db.from('informacion_permanente').update({ activa: false }).eq('id', id);
+  SIGO.showToast('🗄 Aviso archivado');
+  await cargarAvisos();
+}
+
+init();
+</script>
+</body>
+</html>

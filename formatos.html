@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIGO — Formatos Oficiales</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <img src="assets/escudo.jpg" alt="Carabineros">
+    <div class="sidebar-logo-text"><span class="title">SIGO</span><span class="subtitle">Gestión Operacional</span></div>
+  </div>
+  <div class="sidebar-unit">4ª Comisaría — Operaciones</div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Principal</div>
+    <a class="nav-item" href="index.html"><span class="nav-icon">🏠</span> Vista de Turno</a>
+    <a class="nav-item" href="tareas.html"><span class="nav-icon">📋</span> Tareas y Cuentas</a>
+    <a class="nav-item" href="calendario.html"><span class="nav-icon">📅</span> Calendario</a>
+    <div class="nav-section-label">Gestiones</div>
+    <a class="nav-item" href="gestiones.html"><span class="nav-icon">🔵</span> Gestiones</a>
+    <div class="nav-section-label">Documentos</div>
+    <a class="nav-item" href="documentos.html"><span class="nav-icon">📥</span> Documentos DOE</a>
+    <div class="nav-section-label">Control</div>
+    <a class="nav-item" href="rutinas.html"><span class="nav-icon">🔁</span> Rutinas</a>
+    <a class="nav-item active" href="formatos.html"><span class="nav-icon">📎</span> Formatos Oficiales</a>
+    <a class="nav-item" href="avisos.html"><span class="nav-icon">📢</span> Avisos</a>
+    <div class="nav-section-label">Admin</div>
+    <a class="nav-item" href="usuarios.html"><span class="nav-icon">👤</span> Usuarios</a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-avatar" id="user-avatar">?</div>
+    <div class="user-info"><div class="name" id="user-name">Cargando...</div><div class="role" id="user-role">—</div></div>
+    <button onclick="SIGO.logout()" style="background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:16px;">⏻</button>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <button class="btn-hamburger" onclick="SIGO.toggleSidebar()">☰</button>
+    <div class="topbar-title">Formatos Oficiales</div>
+  </div>
+
+  <div class="content">
+    <div class="alert alert-info mb-4">
+      <span>ℹ️</span>
+      <div>Aquí puedes ver y cargar los formatos oficiales vinculados a cada tarea. Al subir un formato nuevo, el anterior queda en el historial. Siempre se muestra el formato vigente primero.</div>
+    </div>
+
+    <!-- SELECTOR DE TAREA -->
+    <div class="card mb-4">
+      <div class="card-body" style="padding:14px 20px;">
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+          <label style="font-weight:600;font-size:13px;">Tarea / Cuenta:</label>
+          <select id="sel-tarea" class="form-control" style="width:320px;" onchange="cargarFormatos()">
+            <option value="">Seleccionar tarea...</option>
+          </select>
+          <div id="upload-area" class="hidden" style="display:flex;gap:8px;align-items:center;">
+            <input type="file" id="input-archivo" accept=".xlsx,.xls,.docx,.doc,.pptx,.ppt,.pdf" style="display:none;" onchange="previewArchivo()">
+            <input type="text" id="nombre-formato" class="form-control" style="width:200px;" placeholder="Nombre del formato">
+            <button class="btn btn-secondary" onclick="document.getElementById('input-archivo').click()">📂 Seleccionar Archivo</button>
+            <span id="archivo-nombre" class="text-sm text-muted"></span>
+            <button class="btn btn-primary hidden" id="btn-subir" onclick="subirFormato()">⬆ Subir</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FORMATOS VIGENTES -->
+    <div id="seccion-vigente" class="hidden">
+      <h3 style="font-family:'Barlow Condensed',sans-serif;font-size:18px;color:var(--verde-oscuro);margin-bottom:12px;">📌 Formato Vigente</h3>
+      <div id="formato-vigente"></div>
+
+      <h3 style="font-family:'Barlow Condensed',sans-serif;font-size:18px;color:var(--verde-oscuro);margin:20px 0 12px;">📚 Historial de Versiones</h3>
+      <div class="card">
+        <div class="card-body" style="padding:0;">
+          <table>
+            <thead>
+              <tr>
+                <th>Versión</th>
+                <th>Nombre</th>
+                <th>Tipo</th>
+                <th>Subido por</th>
+                <th>Fecha</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-formatos"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="sin-tarea" style="text-align:center;padding:60px;color:#aaa;">
+      <div style="font-size:48px;">📎</div>
+      <div style="margin-top:12px;font-size:14px;">Selecciona una tarea para ver sus formatos</div>
+    </div>
+
+  </div>
+</div>
+
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="SIGO.toggleSidebar()"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script>
+<script>
+let currentUser = null;
+let archivoSeleccionado = null;
+
+async function init() {
+  currentUser = await SIGO.authGuard();
+  if (!currentUser) return;
+  const profile = await SIGO.getUserProfile(currentUser.id);
+  document.getElementById('user-name').textContent = profile?.nombre || currentUser.email;
+  document.getElementById('user-role').textContent = profile?.grado || profile?.rol || '';
+  document.getElementById('user-avatar').textContent = (profile?.nombre || 'U')[0].toUpperCase();
+
+  const tareas = await SIGO.getTareas();
+  const sel = document.getElementById('sel-tarea');
+  tareas.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.id; opt.textContent = `${t.titulo} (${t.tipo})`;
+    sel.appendChild(opt);
+  });
+
+  // Si viene con parámetro de tarea
+  const params = new URLSearchParams(window.location.search);
+  const tareaId = params.get('tarea');
+  if (tareaId) {
+    sel.value = tareaId;
+    await cargarFormatos();
+  }
+}
+
+async function cargarFormatos() {
+  const tareaId = document.getElementById('sel-tarea').value;
+  const sinTarea = document.getElementById('sin-tarea');
+  const seccion = document.getElementById('seccion-vigente');
+  const uploadArea = document.getElementById('upload-area');
+
+  if (!tareaId) {
+    sinTarea.style.display = 'block';
+    seccion.classList.add('hidden');
+    uploadArea.classList.add('hidden');
+    return;
+  }
+
+  sinTarea.style.display = 'none';
+  seccion.classList.remove('hidden');
+  uploadArea.classList.remove('hidden');
+  uploadArea.style.display = 'flex';
+
+  const formatos = await SIGO.getFormatosPorTarea(tareaId);
+
+  const vigente = formatos.find(f => f.vigente);
+  const vigenteEl = document.getElementById('formato-vigente');
+
+  if (!vigente) {
+    vigenteEl.innerHTML = '<div class="alert alert-warning"><span>⚠️</span> Sin formato vigente. Sube el primero usando el botón de arriba.</div>';
+  } else {
+    const icono = { xlsx: '📊', xls: '📊', docx: '📝', doc: '📝', pptx: '📊', ppt: '📊', pdf: '📄' }[vigente.tipo_archivo] || '📎';
+    vigenteEl.innerHTML = `
+      <div class="card" style="border:2px solid var(--verde-oscuro);">
+        <div class="card-body" style="display:flex;align-items:center;gap:16px;padding:16px;">
+          <div style="font-size:40px;">${icono}</div>
+          <div style="flex:1;">
+            <div style="font-weight:700;font-size:16px;">${vigente.nombre}</div>
+            <div class="text-sm text-muted">Versión ${vigente.version} · ${vigente.tipo_archivo.toUpperCase()} · Subido el ${SIGO.formatFecha(vigente.created_at)}</div>
+            <div class="text-sm text-muted">Por: ${vigente.subido_por?.nombre || '—'}</div>
+          </div>
+          <a href="${vigente.archivo_url}" target="_blank" download class="btn btn-primary">⬇ Descargar</a>
+        </div>
+      </div>`;
+  }
+
+  const tbody = document.getElementById('tabla-formatos');
+  if (!formatos.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#888;">Sin versiones anteriores</td></tr>';
+    return;
+  }
+  tbody.innerHTML = formatos.map(f => {
+    const icono = { xlsx: '📊', xls: '📊', docx: '📝', doc: '📝', pptx: '📊', ppt: '📊', pdf: '📄' }[f.tipo_archivo] || '📎';
+    return `
+      <tr style="${f.vigente ? 'background:#f0fbf4;' : ''}">
+        <td><strong>v${f.version}</strong></td>
+        <td>${icono} ${f.nombre}</td>
+        <td><span class="badge badge-normal">${f.tipo_archivo.toUpperCase()}</span></td>
+        <td>${f.subido_por?.nombre || '—'}</td>
+        <td>${SIGO.formatFecha(f.created_at)}</td>
+        <td>${f.vigente ? '<span class="badge badge-finalizada">✅ Vigente</span>' : '<span class="badge badge-archivada">Historial</span>'}</td>
+        <td><a href="${f.archivo_url}" target="_blank" class="btn btn-sm btn-secondary">⬇ Descargar</a></td>
+      </tr>`;
+  }).join('');
+}
+
+function previewArchivo() {
+  const input = document.getElementById('input-archivo');
+  archivoSeleccionado = input.files[0];
+  if (archivoSeleccionado) {
+    document.getElementById('archivo-nombre').textContent = archivoSeleccionado.name;
+    document.getElementById('btn-subir').classList.remove('hidden');
+    if (!document.getElementById('nombre-formato').value) {
+      document.getElementById('nombre-formato').value = archivoSeleccionado.name.replace(/\.[^.]+$/, '');
+    }
+  }
+}
+
+async function subirFormato() {
+  const tareaId = document.getElementById('sel-tarea').value;
+  const nombre = document.getElementById('nombre-formato').value.trim();
+  if (!archivoSeleccionado || !nombre) {
+    SIGO.showToast('⚠️ Selecciona un archivo y ponle nombre', 'warning');
+    return;
+  }
+  try {
+    await SIGO.subirFormato(tareaId, archivoSeleccionado, nombre, currentUser.id);
+    SIGO.showToast('✅ Formato subido correctamente');
+    archivoSeleccionado = null;
+    document.getElementById('input-archivo').value = '';
+    document.getElementById('archivo-nombre').textContent = '';
+    document.getElementById('btn-subir').classList.add('hidden');
+    document.getElementById('nombre-formato').value = '';
+    await cargarFormatos();
+  } catch(e) {
+    SIGO.showToast('❌ Error al subir. Verifica la configuración de Storage en Supabase.', 'danger');
+  }
+}
+
+init();
+</script>
+</body>
+</html>

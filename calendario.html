@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIGO — Calendario</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+    .cal-header-day { text-align:center; font-size:11px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; padding:6px 0; }
+    .cal-day {
+      min-height:80px; padding:8px 6px; border-radius:8px;
+      border:1px solid var(--border); cursor:pointer;
+      transition:all 0.15s; position:relative; background:#fff;
+    }
+    .cal-day:hover { border-color: var(--verde-oscuro); box-shadow:var(--shadow-sm); }
+    .cal-day.selected { border-color: var(--verde-oscuro); border-width:2px; box-shadow:var(--shadow); }
+    .cal-day.hoy { background:#f0fbf4; border-color:var(--verde-oscuro); }
+    .cal-day.otro-mes { opacity:0.35; pointer-events:none; }
+    .cal-num { font-size:13px; font-weight:700; color:var(--text-primary); }
+    .panel-detalle { position:sticky; top:80px; }
+    .detalle-item {
+      display:flex; align-items:flex-start; gap:10px;
+      padding:8px 0; border-bottom:1px solid var(--border); font-size:13px;
+    }
+    .detalle-item:last-child { border-bottom:none; }
+    .detalle-grupo-title {
+      font-family:'Barlow Condensed',sans-serif; font-size:13px;
+      font-weight:700; text-transform:uppercase; letter-spacing:0.5px;
+      color:var(--text-secondary); padding:10px 0 4px;
+    }
+    @media(max-width:900px){ .cal-layout { flex-direction:column!important; } }
+  </style>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <img src="assets/escudo.jpg" alt="Carabineros">
+    <div class="sidebar-logo-text">
+      <span class="title">SIGO</span>
+      <span class="subtitle">Gestión Operacional</span>
+    </div>
+  </div>
+  <div class="sidebar-unit">4ª Comisaría — Operaciones</div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Principal</div>
+    <a class="nav-item" href="index.html"><span class="nav-icon">🏠</span> Vista de Turno</a>
+    <a class="nav-item" href="tareas.html"><span class="nav-icon">📋</span> Tareas y Cuentas</a>
+    <a class="nav-item active" href="calendario.html"><span class="nav-icon">📅</span> Calendario</a>
+    <div class="nav-section-label">Gestiones</div>
+    <a class="nav-item" href="gestiones.html"><span class="nav-icon">🔵</span> Gestiones</a>
+    <div class="nav-section-label">Documentos</div>
+    <a class="nav-item" href="documentos.html"><span class="nav-icon">📥</span> Documentos DOE</a>
+    <div class="nav-section-label">Control</div>
+    <a class="nav-item" href="rutinas.html"><span class="nav-icon">🔁</span> Rutinas</a>
+    <a class="nav-item" href="formatos.html"><span class="nav-icon">📎</span> Formatos Oficiales</a>
+    <a class="nav-item" href="avisos.html"><span class="nav-icon">📢</span> Avisos</a>
+    <div class="nav-section-label">Admin</div>
+    <a class="nav-item" href="usuarios.html"><span class="nav-icon">👤</span> Usuarios</a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-avatar" id="user-avatar">?</div>
+    <div class="user-info">
+      <div class="name" id="user-name">Cargando...</div>
+      <div class="role" id="user-role">—</div>
+    </div>
+    <button onclick="SIGO.logout()" style="background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:16px;">⏻</button>
+  </div>
+</aside>
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="SIGO.toggleSidebar()"></div>
+
+<div class="main">
+  <div class="topbar">
+    <button class="btn-hamburger" onclick="SIGO.toggleSidebar()">☰</button>
+    <div class="topbar-title">📅 Calendario Operacional</div>
+  </div>
+
+  <div class="content">
+    <!-- Nav mes -->
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px;">
+      <button onclick="cambiarMes(-1)" class="btn btn-outline">‹</button>
+      <div>
+        <h2 id="titulo-mes" style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:var(--verde-oscuro);"></h2>
+        <div id="resumen-mes" style="font-size:12px;color:var(--text-secondary);"></div>
+      </div>
+      <button onclick="cambiarMes(1)" class="btn btn-outline">›</button>
+      <button onclick="irHoy()" class="btn btn-outline" style="margin-left:auto;">Hoy</button>
+    </div>
+
+    <div class="cal-layout" style="display:flex;gap:20px;align-items:flex-start;">
+      <!-- CALENDARIO -->
+      <div style="flex:1;min-width:0;">
+        <div class="cal-grid" id="cal-headers">
+          <div class="cal-header-day">LUN</div>
+          <div class="cal-header-day">MAR</div>
+          <div class="cal-header-day">MIÉ</div>
+          <div class="cal-header-day">JUE</div>
+          <div class="cal-header-day">VIE</div>
+          <div class="cal-header-day">SÁB</div>
+          <div class="cal-header-day">DOM</div>
+        </div>
+        <div class="cal-grid" id="cal-grid" style="margin-top:4px;">
+          <div style="text-align:center;padding:40px;color:var(--text-muted);">Cargando...</div>
+        </div>
+      </div>
+      <!-- PANEL DETALLE -->
+      <div style="width:300px;flex-shrink:0;" class="panel-detalle">
+        <div class="card" id="panel-detalle" style="padding:20px;">
+          <div style="text-align:center;color:var(--text-muted);padding:20px 0;">
+            <div style="font-size:28px;margin-bottom:8px;">📅</div>
+            Selecciona un día para ver el detalle
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script>
+<script>
+let mesActual = new Date().getMonth();
+let anoActual = new Date().getFullYear();
+let todasLasTareas = [];
+let diaSeleccionado = null;
+
+const mesesNombres = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const diasNombres = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+
+function calcularTotalDia(fecha) {
+  const diaSemana = fecha.getDay() === 0 ? 7 : fecha.getDay();
+  const diaMes = fecha.getDate();
+  const iso = fecha.toISOString().split('T')[0];
+  return todasLasTareas.filter(t => {
+    if (t.tipo === 'diaria') return true;
+    if (t.tipo === 'semanal' && t.dia_semana == diaSemana) return true;
+    if (t.tipo === 'mensual' && t.dia_mes == diaMes) return true;
+    if (t.tipo === 'quincenal' && [1, 15].includes(diaMes)) return true;
+    if (t.tipo === 'extraordinaria' && t.fecha_programada === iso) return true;
+    return false;
+  });
+}
+
+async function renderCalendario() {
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML = '<div style="grid-column:span 7;text-align:center;padding:20px;color:var(--text-muted);">Cargando...</div>';
+
+  document.getElementById('titulo-mes').textContent = `${mesesNombres[mesActual]} ${anoActual}`;
+
+  const primerDia = new Date(anoActual, mesActual, 1);
+  const ultimoDia = new Date(anoActual, mesActual + 1, 0);
+  const hoy = new Date();
+  const hoyIso = hoy.toISOString().split('T')[0];
+
+  // Día de la semana del primer día (0=Dom, ajustamos a Lun=0)
+  let inicioSemana = (primerDia.getDay() + 6) % 7;
+
+  let totalCuentasMes = 0;
+  let cells = '';
+
+  // Celdas vacías al inicio
+  for (let i = 0; i < inicioSemana; i++) {
+    cells += '<div class="cal-day otro-mes"></div>';
+  }
+
+  const diasMes = ultimoDia.getDate();
+  for (let d = 1; d <= diasMes; d++) {
+    const fecha = new Date(anoActual, mesActual, d);
+    const iso = fecha.toISOString().split('T')[0];
+    const tareasDia = calcularTotalDia(fecha);
+    const total = tareasDia.length;
+    totalCuentasMes += total;
+
+    let cargaClass = '';
+    if (total >= 13) cargaClass = 'carga-critica';
+    else if (total >= 9) cargaClass = 'carga-alta';
+    else if (total >= 5) cargaClass = 'carga-media';
+    else cargaClass = 'carga-baja';
+
+    const esHoy = iso === hoyIso;
+    const esPasado = fecha < hoy && !esHoy;
+    const selClass = diaSeleccionado === iso ? 'selected' : '';
+
+    // Dots (solo días pasados - se cargan en click para no hacer 30 requests)
+    const totalHtml = total > 0 ? `<div class="cal-total">${total}</div>` : '';
+    const dotsPasadoHtml = esPasado ? `<div class="cal-dots" id="dots-${iso}"></div>` : '';
+
+    cells += `<div class="cal-day ${cargaClass} ${esHoy ? 'hoy' : ''} ${selClass}"
+      onclick="seleccionarDia(new Date('${iso}T12:00:00'))" id="cal-cell-${iso}">
+      <span class="cal-num">${d}</span>
+      ${totalHtml}
+      ${dotsPasadoHtml}
+    </div>`;
+  }
+
+  // Celdas vacías al final
+  const totalCells = inicioSemana + diasMes;
+  const restantes = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+  for (let i = 0; i < restantes; i++) {
+    cells += '<div class="cal-day otro-mes"></div>';
+  }
+
+  grid.innerHTML = cells;
+
+  document.getElementById('resumen-mes').textContent =
+    `${mesesNombres[mesActual].toUpperCase()} ${anoActual} · ${diasMes} días · ${totalCuentasMes} cuentas en el mes`;
+}
+
+async function seleccionarDia(fecha) {
+  const iso = fecha.toISOString().split('T')[0];
+  const hoy = new Date().toISOString().split('T')[0];
+
+  // Actualizar selección visual
+  document.querySelectorAll('.cal-day.selected').forEach(el => el.classList.remove('selected'));
+  document.getElementById('cal-cell-' + iso)?.classList.add('selected');
+  diaSeleccionado = iso;
+
+  const panel = document.getElementById('panel-detalle');
+  const esPasado = iso < hoy;
+  const esHoy = iso === hoy;
+
+  const tareas = calcularTotalDia(fecha);
+  const grupoMap = { diaria:'DIARIAS', semanal:'SEMANALES', mensual:'MENSUALES', quincenal:'QUINCENALES', extraordinaria:'EXTRAORDINARIAS' };
+
+  // Cargar ejecuciones si es hoy o pasado
+  let ejIds = new Set();
+  if (esPasado || esHoy) {
+    try {
+      const ej = await SIGO.getEjecucionesDelDia(iso);
+      ejIds = new Set(ej.map(e => e.tarea_id));
+      // Pintar dots
+      const dotsEl = document.getElementById('dots-' + iso);
+      if (dotsEl) {
+        const todasResp = tareas.length > 0 && tareas.every(t => ejIds.has(t.id));
+        const alguna = tareas.some(t => !ejIds.has(t.id));
+        if (todasResp) dotsEl.innerHTML = '<span class="cal-dot verde"></span>';
+        else if (alguna) dotsEl.innerHTML = '<span class="cal-dot rojo"></span>';
+      }
+    } catch { }
+  }
+
+  // Agrupar tareas
+  const grupos = {};
+  tareas.forEach(t => {
+    if (!grupos[t.tipo]) grupos[t.tipo] = [];
+    grupos[t.tipo].push(t);
+  });
+
+  const diasNom = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const mesesNom = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const titulo = `${diasNom[fecha.getDay()].toUpperCase()} ${fecha.getDate()} DE ${mesesNom[fecha.getMonth()].toUpperCase()}`;
+
+  let html = `<div style="margin-bottom:16px;">
+    <h3 style="font-family:'Barlow Condensed',sans-serif;font-size:16px;color:var(--verde-oscuro);">${titulo}</h3>
+    <div style="font-size:12px;color:var(--text-secondary);">${tareas.length} tarea${tareas.length!==1?'s':''}</div>
+  </div>`;
+
+  if (!tareas.length) {
+    html += '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px 0;">Sin cuentas este día</div>';
+  } else {
+    for (const [tipo, lista] of Object.entries(grupos)) {
+      html += `<div class="detalle-grupo-title">${grupoMap[tipo]||tipo.toUpperCase()} (${lista.length})</div>`;
+      lista.forEach(t => {
+        let icono = '○';
+        let subTexto = '';
+        if (esHoy && !ejIds.has(t.id)) icono = '<span style="color:var(--verde-oscuro);border:2px solid var(--verde-oscuro);border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;">○</span>';
+        else if ((esPasado || esHoy) && ejIds.has(t.id)) { icono = '✅'; }
+        else if (esPasado && !ejIds.has(t.id)) { icono = '<span style="color:var(--danger)">⚠️</span>'; }
+
+        html += `<div class="detalle-item">
+          <span style="flex-shrink:0;font-size:14px;">${icono}</span>
+          <div style="flex:1">
+            <div style="font-weight:600;">${t.titulo}</div>
+            ${t.hora_limite ? `<div class="text-sm text-muted">${t.hora_limite.substring(0,5)}</div>` : ''}
+          </div>
+        </div>`;
+      });
+    }
+  }
+
+  // Hitos de gestiones del día
+  try {
+    const hitos = await SIGO.getHitosDelDia(iso);
+    if (hitos.length) {
+      html += `<div class="detalle-grupo-title">GESTIONES (${hitos.length})</div>`;
+      hitos.forEach(h => {
+        html += `<div class="detalle-item">
+          <span style="color:#3b82f6;">🔵</span>
+          <div style="flex:1;font-size:12px;">
+            <div style="font-weight:600;">${h.gestion?.nombre || '—'}</div>
+            <div class="text-muted">${h.descripcion}</div>
+          </div>
+        </div>`;
+      });
+    }
+  } catch { }
+
+  if (esHoy) {
+    html += `<a href="index.html" class="btn btn-primary w-100" style="margin-top:16px;text-align:center;display:block;">🏠 Ir al Turno de Hoy →</a>`;
+  }
+
+  panel.innerHTML = html;
+}
+
+function cambiarMes(delta) {
+  mesActual += delta;
+  if (mesActual > 11) { mesActual = 0; anoActual++; }
+  if (mesActual < 0) { mesActual = 11; anoActual--; }
+  renderCalendario();
+}
+
+function irHoy() {
+  mesActual = new Date().getMonth();
+  anoActual = new Date().getFullYear();
+  renderCalendario();
+}
+
+async function init() {
+  const user = await SIGO.authGuard();
+  if (!user) return;
+  const profile = await SIGO.getUserProfile(user.id);
+  if (profile) {
+    document.getElementById('user-name').textContent = profile.nombre;
+    document.getElementById('user-role').textContent = profile.grado || profile.rol;
+    document.getElementById('user-avatar').textContent = profile.nombre?.charAt(0) || '?';
+  }
+  todasLasTareas = await SIGO.getTareas();
+  renderCalendario();
+}
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

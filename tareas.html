@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIGO — Tareas y Cuentas</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <img src="assets/escudo.jpg" alt="Carabineros">
+    <div class="sidebar-logo-text">
+      <span class="title">SIGO</span>
+      <span class="subtitle">Gestión Operacional</span>
+    </div>
+  </div>
+  <div class="sidebar-unit">4ª Comisaría — Operaciones</div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Principal</div>
+    <a class="nav-item" href="index.html"><span class="nav-icon">🏠</span> Vista de Turno</a>
+    <a class="nav-item active" href="tareas.html"><span class="nav-icon">📋</span> Tareas y Cuentas</a>
+    <a class="nav-item" href="calendario.html"><span class="nav-icon">📅</span> Calendario</a>
+    <div class="nav-section-label">Gestiones</div>
+    <a class="nav-item" href="gestiones.html"><span class="nav-icon">🔵</span> Gestiones</a>
+    <div class="nav-section-label">Documentos</div>
+    <a class="nav-item" href="documentos.html"><span class="nav-icon">📥</span> Documentos DOE</a>
+    <div class="nav-section-label">Control</div>
+    <a class="nav-item" href="rutinas.html"><span class="nav-icon">🔁</span> Rutinas</a>
+    <a class="nav-item" href="formatos.html"><span class="nav-icon">📎</span> Formatos Oficiales</a>
+    <a class="nav-item" href="avisos.html"><span class="nav-icon">📢</span> Avisos</a>
+    <div class="nav-section-label">Admin</div>
+    <a class="nav-item" href="usuarios.html"><span class="nav-icon">👤</span> Usuarios</a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-avatar" id="user-avatar">?</div>
+    <div class="user-info">
+      <div class="name" id="user-name">Cargando...</div>
+      <div class="role" id="user-role">—</div>
+    </div>
+    <button onclick="SIGO.logout()" style="background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:16px;">⏻</button>
+  </div>
+</aside>
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="SIGO.toggleSidebar()"></div>
+
+<div class="main">
+  <div class="topbar">
+    <button class="btn-hamburger" onclick="SIGO.toggleSidebar()">☰</button>
+    <div class="topbar-title">📋 Tareas y Cuentas</div>
+    <button onclick="abrirModalNueva()" class="btn btn-primary" style="margin-left:auto;">➕ Nueva Tarea</button>
+  </div>
+
+  <div class="content">
+    <!-- TABS -->
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="cambiarTab('activas',this)">📋 Cuentas Activas</button>
+      <button class="tab-btn" onclick="cambiarTab('extraordinarias',this)">⚡ Extraordinarias</button>
+      <button class="tab-btn" onclick="cambiarTab('archivo',this)">🗄 Archivo</button>
+    </div>
+
+    <!-- TAB ACTIVAS -->
+    <div id="tab-activas">
+      <div id="grupos-activas">
+        <div style="text-align:center;padding:40px;color:var(--text-muted);">Cargando...</div>
+      </div>
+    </div>
+
+    <!-- TAB EXTRAORDINARIAS -->
+    <div id="tab-extraordinarias" class="hidden">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+        <button onclick="abrirModalExtraordinaria()" class="btn btn-primary">➕ Nueva Tarea Extraordinaria</button>
+      </div>
+      <div class="card" style="overflow:auto;">
+        <table class="table" id="tabla-extraordinarias">
+          <thead><tr>
+            <th>Nombre</th><th>Fecha Programada</th><th>Hora</th>
+            <th>Responsable</th><th>Estado</th><th>Días restantes</th><th>Acciones</th>
+          </tr></thead>
+          <tbody id="tbody-ext">
+            <tr><td colspan="7" style="text-align:center;color:var(--text-muted);">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB ARCHIVO -->
+    <div id="tab-archivo" class="hidden">
+      <div class="card" style="overflow:auto;">
+        <table class="table" id="tabla-archivo">
+          <thead><tr>
+            <th>Nombre</th><th>Tipo</th><th>Fecha Archivo</th>
+            <th>Quién archivó</th><th>Motivo</th><th>Acciones</th>
+          </tr></thead>
+          <tbody id="tbody-arch">
+            <tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NUEVA/EDITAR TAREA -->
+<div class="modal-overlay" id="modal-tarea">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header">
+      <h3 id="modal-tarea-titulo">Nueva Tarea</h3>
+      <button class="modal-close" onclick="SIGO.closeModal('modal-tarea')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="t-id">
+      <!-- SECCIÓN A -->
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-secondary);margin-bottom:12px;">¿Qué es y cuándo ocurre?</div>
+      <div class="form-group">
+        <label>Nombre *</label>
+        <input type="text" id="t-titulo" class="form-control" placeholder="Ej: Informe de Novedades">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Tipo *</label>
+          <select id="t-tipo" class="form-control" onchange="cambiarCamposFrecuencia()">
+            <option value="diaria">Diaria</option>
+            <option value="semanal">Semanal</option>
+            <option value="quincenal">Quincenal</option>
+            <option value="mensual">Mensual</option>
+            <option value="extraordinaria">Extraordinaria</option>
+          </select>
+        </div>
+        <div class="form-group" id="grp-dia-semana">
+          <label>Día de semana</label>
+          <select id="t-dia-semana" class="form-control">
+            <option value="1">Lunes</option><option value="2">Martes</option>
+            <option value="3">Miércoles</option><option value="4">Jueves</option>
+            <option value="5">Viernes</option><option value="6">Sábado</option><option value="7">Domingo</option>
+          </select>
+        </div>
+        <div class="form-group hidden" id="grp-dia-mes">
+          <label>Día del mes</label>
+          <input type="number" id="t-dia-mes" class="form-control" min="1" max="28" value="1">
+        </div>
+        <div class="form-group hidden" id="grp-fecha-prog">
+          <label>Fecha programada</label>
+          <input type="date" id="t-fecha-prog" class="form-control">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Descripción</label>
+        <textarea id="t-descripcion" class="form-control" rows="2" placeholder="Instrucciones o contexto..."></textarea>
+      </div>
+      <hr style="border-color:var(--border);margin:16px 0;">
+      <!-- SECCIÓN B -->
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-secondary);margin-bottom:12px;">¿Quién y cuándo?</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Responsable principal</label>
+          <select id="t-responsable" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label>Responsable secundario</label>
+          <select id="t-responsable-sec" class="form-control"><option value="">Sin asignar</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Hora límite oficial</label>
+          <input type="time" id="t-hora-limite" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>Hora límite interna</label>
+          <input type="time" id="t-hora-interna" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>Área</label>
+          <select id="t-area" class="form-control">
+            <option value="Operaciones">Operaciones</option>
+            <option value="SIP">SIP</option><option value="OS2">OS2</option>
+            <option value="OS3">OS3</option><option value="Frontera">Frontera</option>
+            <option value="Administrativo">Administrativo</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Prioridad</label>
+        <select id="t-prioridad" class="form-control">
+          <option value="normal">Normal</option>
+          <option value="alta">Alta</option>
+          <option value="critica">Crítica</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="SIGO.closeModal('modal-tarea')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarTarea()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ARCHIVAR -->
+<div class="modal-overlay" id="modal-archivar">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header" style="background:#7f8c8d;">
+      <h3>🗄 Archivar Cuenta</h3>
+      <button class="modal-close" onclick="SIGO.closeModal('modal-archivar')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="archivar-nombre" style="font-weight:700;font-size:15px;margin-bottom:8px;"></p>
+      <div class="alert alert-warning" style="margin-bottom:16px;">
+        Esta cuenta dejará de aparecer en el turno diario inmediatamente.
+        La acción queda registrada y puede revertirse desde el Archivo.
+      </div>
+      <div class="form-group">
+        <label>Motivo * (obligatorio)</label>
+        <textarea id="archivar-motivo" class="form-control" rows="2"
+          placeholder="Ej: Instrucción dejada sin efecto. Tarea extraordinaria cumplida."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Referencia (circular, orden, etc.)</label>
+        <input type="text" id="archivar-referencia" class="form-control"
+          placeholder="Ej: Circular N° 1234 del 20/02/2026">
+      </div>
+      <input type="hidden" id="archivar-id">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="SIGO.closeModal('modal-archivar')">Cancelar</button>
+      <button class="btn btn-secondary" onclick="confirmarArchivar()">🗄 Confirmar Archivo</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script>
+<script>
+let currentUser = null;
+let usuarios = [];
+let tabActual = 'activas';
+
+function cambiarTab(tab, btn) {
+  tabActual = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  ['activas','extraordinarias','archivo'].forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('hidden', t !== tab);
+  });
+  cargarTab(tab);
+}
+
+async function cargarTab(tab) {
+  if (tab === 'activas') await cargarActivas();
+  else if (tab === 'extraordinarias') await cargarExtraordinarias();
+  else if (tab === 'archivo') await cargarArchivo();
+}
+
+// ── Cuentas Activas ──────────────────────────
+async function cargarActivas() {
+  const el = document.getElementById('grupos-activas');
+  el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">Cargando...</div>';
+  try {
+    const tareas = await SIGO.getTareas({ });
+    const grupos = { diaria:[], semanal:[], quincenal:[], mensual:[] };
+    tareas.forEach(t => {
+      if (grupos[t.tipo]) grupos[t.tipo].push(t);
+    });
+    const labelMap = { diaria:'📅 Diarias', semanal:'📆 Semanales', quincenal:'🔄 Quincenales', mensual:'📌 Mensuales' };
+    let html = '';
+    for (const [tipo, lista] of Object.entries(grupos)) {
+      if (!lista.length) continue;
+      html += `<div class="grupo-header" onclick="toggleGrupo('grupo-${tipo}')">
+        <span>${labelMap[tipo]}</span>
+        <span class="grupo-count">${lista.length}</span>
+      </div>
+      <div class="grupo-body" id="grupo-${tipo}">
+        <div class="card" style="padding:0;overflow:auto;">
+          <table class="table">
+            <thead><tr><th>Nombre</th><th>Hora Límite</th><th>Área</th><th>Responsable</th><th>Acciones</th></tr></thead>
+            <tbody>
+              ${lista.map(t => `<tr>
+                <td><strong>${t.titulo}</strong>${t.descripcion ? `<br><span class="text-sm text-muted">${t.descripcion.substring(0,60)}</span>` : ''}</td>
+                <td>${t.hora_limite ? t.hora_limite.substring(0,5) : '—'}</td>
+                <td>${t.area ? `<span class="badge badge-normal">${t.area}</span>` : '—'}</td>
+                <td>${t.responsable ? `${t.responsable.grado} ${t.responsable.nombre}` : '—'}</td>
+                <td style="white-space:nowrap;">
+                  <button class="btn btn-sm btn-outline" onclick="editarTarea('${t.id}')">✏️</button>
+                  <button class="btn btn-sm btn-secondary" onclick="abrirArchivar('${t.id}','${t.titulo.replace(/'/g,"\\'")}')">🗄</button>
+                </td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    }
+    if (!html) html = '<div class="card" style="text-align:center;padding:40px;color:var(--text-muted);">No hay tareas activas. Crea la primera con el botón ➕</div>';
+    el.innerHTML = html;
+  } catch (err) {
+    el.innerHTML = `<div class="alert alert-warning">⚠️ ${err.message}</div>`;
+  }
+}
+
+function toggleGrupo(id) {
+  document.getElementById(id)?.classList.toggle('hidden');
+}
+
+// ── Extraordinarias ──────────────────────────
+async function cargarExtraordinarias() {
+  const tbody = document.getElementById('tbody-ext');
+  try {
+    const tareas = await SIGO.getTareas({ tipo:'extraordinaria' });
+    // También traer las inactivas extraordinarias vencidas
+    const { data: todas } = await SIGO.db.from('tareas').select(`
+      *, responsable:users!responsable_id(nombre, grado)
+    `).eq('tipo','extraordinaria').order('fecha_programada');
+    const hoy = new Date().toISOString().split('T')[0];
+    tbody.innerHTML = (todas||[]).map(t => {
+      const dias = t.fecha_programada ? Math.ceil((new Date(t.fecha_programada) - new Date()) / 86400000) : null;
+      let rowClass = '';
+      if (t.estado === 'finalizada') rowClass = 'style="background:#f5fbf7;"';
+      else if (t.fecha_programada && t.fecha_programada < hoy && t.estado !== 'finalizada') rowClass = 'style="background:#fff5f5;"';
+      return `<tr ${rowClass}>
+        <td><strong>${t.titulo}</strong></td>
+        <td>${SIGO.formatFecha(t.fecha_programada)}</td>
+        <td>${t.hora_limite ? t.hora_limite.substring(0,5) : '—'}</td>
+        <td>${t.responsable ? `${t.responsable.grado} ${t.responsable.nombre}` : '—'}</td>
+        <td>${SIGO.badgeEstadoTarea(t.estado)}</td>
+        <td>${dias !== null ? (dias < 0 ? `<span style="color:var(--danger)">hace ${Math.abs(dias)} días</span>` : `en ${dias} días`) : '—'}</td>
+        <td><button class="btn btn-sm btn-outline" onclick="editarTarea('${t.id}')">✏️</button></td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">Sin extraordinarias</td></tr>';
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="7">${err.message}</td></tr>`;
+  }
+}
+
+// ── Archivo ──────────────────────────────────
+async function cargarArchivo() {
+  const tbody = document.getElementById('tbody-arch');
+  try {
+    const { data, error } = await SIGO.db.from('tareas').select(`
+      *, responsable:users!responsable_id(nombre, grado)
+    `).eq('activa', false).order('updated_at', { ascending: false });
+    if (error) throw error;
+    // Obtener historial para motivos
+    const ids = (data||[]).map(t => t.id);
+    let histMap = {};
+    if (ids.length) {
+      const { data: hist } = await SIGO.db.from('historial_movimientos')
+        .select('*,usuario:users!usuario_id(nombre,grado)')
+        .in('entidad_id', ids).eq('accion','archivada');
+      (hist||[]).forEach(h => { if (!histMap[h.entidad_id]) histMap[h.entidad_id] = h; });
+    }
+    tbody.innerHTML = (data||[]).map(t => {
+      const h = histMap[t.id];
+      return `<tr>
+        <td><strong>${t.titulo}</strong></td>
+        <td><span class="badge badge-normal">${t.tipo}</span></td>
+        <td>${SIGO.formatFecha(t.updated_at)}</td>
+        <td>${h?.usuario ? `${h.usuario.grado} ${h.usuario.nombre}` : '—'}</td>
+        <td style="max-width:200px;font-size:12px;">${h?.descripcion || '—'}</td>
+        <td><button class="btn btn-sm btn-outline" onclick="restaurarTarea('${t.id}')">↩ Restaurar</button></td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Sin tareas archivadas</td></tr>';
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="6">${err.message}</td></tr>`;
+  }
+}
+
+async function restaurarTarea(id) {
+  if (!confirm('¿Restaurar esta tarea? Volverá a aparecer en el turno diario.')) return;
+  await SIGO.db.from('tareas').update({ activa: true, estado: 'pendiente' }).eq('id', id);
+  SIGO.showToast('↩ Tarea restaurada');
+  cargarArchivo();
+}
+
+// ── Modales ──────────────────────────────────
+function abrirModalNueva() {
+  document.getElementById('t-id').value = '';
+  document.getElementById('modal-tarea-titulo').textContent = 'Nueva Tarea';
+  document.getElementById('t-titulo').value = '';
+  document.getElementById('t-tipo').value = 'diaria';
+  document.getElementById('t-descripcion').value = '';
+  document.getElementById('t-hora-limite').value = '';
+  document.getElementById('t-hora-interna').value = '';
+  document.getElementById('t-prioridad').value = 'normal';
+  cambiarCamposFrecuencia();
+  SIGO.openModal('modal-tarea');
+}
+
+function abrirModalExtraordinaria() {
+  abrirModalNueva();
+  document.getElementById('t-tipo').value = 'extraordinaria';
+  cambiarCamposFrecuencia();
+}
+
+async function editarTarea(id) {
+  const { data: t } = await SIGO.db.from('tareas').select('*').eq('id', id).single();
+  if (!t) return;
+  document.getElementById('t-id').value = t.id;
+  document.getElementById('modal-tarea-titulo').textContent = 'Editar Tarea';
+  document.getElementById('t-titulo').value = t.titulo;
+  document.getElementById('t-tipo').value = t.tipo;
+  document.getElementById('t-descripcion').value = t.descripcion || '';
+  document.getElementById('t-hora-limite').value = t.hora_limite || '';
+  document.getElementById('t-hora-interna').value = t.hora_limite_interna || '';
+  document.getElementById('t-prioridad').value = t.prioridad || 'normal';
+  document.getElementById('t-area').value = t.area || 'Operaciones';
+  document.getElementById('t-responsable').value = t.responsable_id || '';
+  document.getElementById('t-responsable-sec').value = t.responsable_secundario_id || '';
+  if (t.dia_semana) document.getElementById('t-dia-semana').value = t.dia_semana;
+  if (t.dia_mes) document.getElementById('t-dia-mes').value = t.dia_mes;
+  if (t.fecha_programada) document.getElementById('t-fecha-prog').value = t.fecha_programada;
+  cambiarCamposFrecuencia();
+  SIGO.openModal('modal-tarea');
+}
+
+function cambiarCamposFrecuencia() {
+  const tipo = document.getElementById('t-tipo').value;
+  document.getElementById('grp-dia-semana').classList.toggle('hidden', tipo !== 'semanal');
+  document.getElementById('grp-dia-mes').classList.toggle('hidden', tipo !== 'mensual');
+  document.getElementById('grp-fecha-prog').classList.toggle('hidden', tipo !== 'extraordinaria');
+}
+
+async function guardarTarea() {
+  const id = document.getElementById('t-id').value;
+  const datos = {
+    titulo: document.getElementById('t-titulo').value.trim(),
+    tipo: document.getElementById('t-tipo').value,
+    descripcion: document.getElementById('t-descripcion').value.trim(),
+    hora_limite: document.getElementById('t-hora-limite').value || null,
+    hora_limite_interna: document.getElementById('t-hora-interna').value || null,
+    prioridad: document.getElementById('t-prioridad').value,
+    area: document.getElementById('t-area').value,
+    responsable_id: document.getElementById('t-responsable').value || null,
+    responsable_secundario_id: document.getElementById('t-responsable-sec').value || null,
+  };
+  if (!datos.titulo) { SIGO.showToast('⚠️ El nombre es obligatorio','warning'); return; }
+  if (datos.tipo === 'semanal') datos.dia_semana = parseInt(document.getElementById('t-dia-semana').value);
+  if (datos.tipo === 'mensual') datos.dia_mes = parseInt(document.getElementById('t-dia-mes').value);
+  if (datos.tipo === 'extraordinaria') datos.fecha_programada = document.getElementById('t-fecha-prog').value || null;
+
+  try {
+    if (id) {
+      await SIGO.actualizarTarea(id, datos);
+      SIGO.showToast('✅ Tarea actualizada');
+    } else {
+      datos.activa = true; datos.estado = 'pendiente';
+      await SIGO.crearTarea(datos);
+      SIGO.showToast('✅ Tarea creada');
+    }
+    SIGO.closeModal('modal-tarea');
+    cargarTab(tabActual);
+  } catch (err) {
+    SIGO.showToast('❌ Error: ' + err.message, 'warning');
+  }
+}
+
+function abrirArchivar(id, nombre) {
+  document.getElementById('archivar-id').value = id;
+  document.getElementById('archivar-nombre').textContent = nombre;
+  document.getElementById('archivar-motivo').value = '';
+  document.getElementById('archivar-referencia').value = '';
+  SIGO.openModal('modal-archivar');
+}
+
+async function confirmarArchivar() {
+  const id = document.getElementById('archivar-id').value;
+  const motivo = document.getElementById('archivar-motivo').value.trim();
+  if (!motivo) { SIGO.showToast('⚠️ El motivo es obligatorio','warning'); return; }
+  const referencia = document.getElementById('archivar-referencia').value;
+  try {
+    await SIGO.db.from('tareas').update({
+      activa: false, estado: 'archivada', updated_at: new Date().toISOString()
+    }).eq('id', id);
+    await SIGO.db.from('historial_movimientos').insert([{
+      usuario_id: currentUser.id,
+      tipo_entidad: 'tarea', entidad_id: id, accion: 'archivada',
+      descripcion: `${motivo}${referencia ? ' · Ref: ' + referencia : ''}`
+    }]);
+    SIGO.showToast('🗄 Cuenta archivada');
+    SIGO.closeModal('modal-archivar');
+    cargarActivas();
+  } catch (err) {
+    SIGO.showToast('❌ Error: ' + err.message, 'warning');
+  }
+}
+
+async function init() {
+  const user = await SIGO.authGuard();
+  if (!user) return;
+  currentUser = user;
+  const profile = await SIGO.getUserProfile(user.id);
+  if (profile) {
+    document.getElementById('user-name').textContent = profile.nombre;
+    document.getElementById('user-role').textContent = profile.grado || profile.rol;
+    document.getElementById('user-avatar').textContent = profile.nombre?.charAt(0) || '?';
+  }
+  usuarios = await SIGO.getUsuarios();
+  const selResp = document.getElementById('t-responsable');
+  const selSec = document.getElementById('t-responsable-sec');
+  const selNhResp = document.getElementById('nh-responsable');
+  usuarios.forEach(u => {
+    const opt = `<option value="${u.id}">${u.grado} ${u.nombre}</option>`;
+    selResp.innerHTML += opt;
+    selSec.innerHTML += opt;
+  });
+  cargarActivas();
+}
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
