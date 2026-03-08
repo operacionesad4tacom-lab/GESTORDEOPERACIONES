@@ -49,7 +49,7 @@ async function getTareas(filtros = {}) {
 }
 
 async function getTareasDelDia(fecha) {
-  const d = new Date(fecha);
+  const d = new Date(fecha + 'T12:00:00'); // T12:00:00 evita desfase de zona horaria (UTC vs hora local Chile)
   const diaSemana = d.getDay() === 0 ? 7 : d.getDay(); // 1=Lun, 7=Dom
   const diaMes = d.getDate();
 
