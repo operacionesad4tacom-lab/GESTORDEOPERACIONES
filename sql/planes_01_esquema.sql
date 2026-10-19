@@ -310,7 +310,11 @@ insert into po_unidades (nombre, sigla, propia, orden) values
   ('Retén Chilcaya',               'Retén Chilcaya',  true,  8),
   ('Tenencia Carretera',           'Tcia. Carretera', false, 20),
   ('OS7 Arica',                    'OS7',             false, 21),
-  ('OS9',                          'OS9',             false, 22)
+  ('OS9',                          'OS9',             false, 22),
+  ('2da Comisaría Putre',          '2da Com. Putre',  false, 23),
+  ('Retén Chapiquiña',             'Retén Chapiquiña',false, 24),
+  ('Retén Poconchile',             'Retén Poconchile',false, 25),
+  ('Retén San Miguel de Azapa',    'Retén Azapa',     false, 26)
 on conflict (nombre) do nothing;
 
 commit;

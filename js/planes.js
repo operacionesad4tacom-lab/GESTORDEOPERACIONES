@@ -238,7 +238,8 @@
     data.indicadores.sort(porOrden);
     data.servicios.sort((a, b) => a.inicio.localeCompare(b.inicio));
     data.plazos.sort((a, b) => (a.vence || '9999').localeCompare(b.vence || '9999'));
-    data.ncu.sort((a, b) => (a.fecha || a.created_at || '').localeCompare(b.fecha || b.created_at || ''));
+    // Los NCU son correlativos: ordenar por número reproduce el orden de la traza DOE
+    data.ncu.sort((a, b) => a.ncu.padStart(12, '0').localeCompare(b.ncu.padStart(12, '0')));
     return data;
   }
 
