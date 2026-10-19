@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SIGO — Acceso</title>
+  <link rel="preconnect" href="https://hkqyzfoxucusboloqitr.supabase.co" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@300;400;500;600&display=swap">
+  <link rel="icon" href="assets/escudo.jpg">
   <link rel="stylesheet" href="css/styles.css">
   <style>
     body { background: linear-gradient(135deg, #04742c 0%, #2d8b4d 100%); }
@@ -20,7 +26,7 @@
   <div class="login-page">
     <div class="login-card">
       <div class="login-logo">
-        <img src="assets/escudo.jpg" alt="Carabineros de Chile">
+        <img src="assets/escudo.jpg" alt="Carabineros de Chile" width="84" height="96">
         <h1>SIGO</h1>
         <p>Sistema Integral de Gestión Operacional<br><strong>4ª Comisaría</strong></p>
       </div>
@@ -49,7 +55,7 @@
   </div>
 
   <div class="sidebar-overlay" id="sidebar-overlay" onclick="SIGO.toggleSidebar()"></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
   <script src="js/supabase.js"></script>
   <script>
     async function handleLogin() {

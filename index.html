@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SIGO — Vista de Turno</title>
+  <link rel="preconnect" href="https://hkqyzfoxucusboloqitr.supabase.co" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@300;400;500;600&display=swap">
+  <link rel="icon" href="assets/escudo.jpg">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -11,7 +17,7 @@
 <!-- SIDEBAR -->
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">
-    <img src="assets/escudo.jpg" alt="Carabineros">
+    <img src="assets/escudo.jpg" alt="Carabineros" width="40" height="46">
     <div class="sidebar-logo-text">
       <span class="title">SIGO</span>
       <span class="subtitle">Gestión Operacional</span>
@@ -194,7 +200,7 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="js/supabase.js"></script>
 <script>
 let currentUser = null;
@@ -353,40 +359,46 @@ function toggleDeudas() {
 async function renderSemana() {
   const grid = document.getElementById('semana-grid');
   const letras = ['L','M','X','J','V','S','D'];
-  let html = '';
+  const dias = [];
   for (let i = -6; i <= 0; i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
-    const iso = d.toISOString().split('T')[0];
-    const esHoy = i === 0;
-    const letraIdx = (d.getDay() + 6) % 7;
-    try {
-      const tareas = await SIGO.getTareasDelDia(iso);
-      const ejecuciones = await SIGO.getEjecucionesDelDia(iso);
-      const ejIds = new Set(ejecuciones.map(e => e.tarea_id));
-      let clase = 'vacio';
-      let texto = '';
-      if (tareas.length > 0) {
-        const todas = tareas.every(t => ejIds.has(t.id));
-        clase = todas ? 'ok' : (i < 0 ? 'falta' : 'vacio');
-        texto = todas ? '●' : (i < 0 ? '●' : '');
-      }
-      html += `<div class="semana-dia ${esHoy ? 'hoy' : clase}">
-        <div class="dia-letra">${letras[letraIdx]}</div>
-        <div class="dia-punto">${texto}</div>
-      </div>`;
-    } catch {
-      html += `<div class="semana-dia vacio"><div class="dia-letra">${letras[letraIdx]}</div><div class="dia-punto"></div></div>`;
-    }
+    dias.push({ d, iso: SIGO.fechaISO(d), esHoy: i === 0, pasado: i < 0 });
   }
-  grid.innerHTML = html;
+
+  // 2 consultas para toda la semana (antes eran 14 en serie)
+  let tareas = [], ejecuciones = [];
+  try {
+    [tareas, ejecuciones] = await Promise.all([
+      SIGO.getTareas(),
+      SIGO.getEjecucionesRango(dias[0].iso, dias[6].iso)
+    ]);
+  } catch { }
+  const ejSet = new Set(ejecuciones.map(e => `${e.tarea_id}|${e.fecha}`));
+
+  grid.innerHTML = dias.map(({ d, iso, esHoy, pasado }) => {
+    const letra = letras[(d.getDay() + 6) % 7];
+    const tareasDia = tareas.filter(t =>
+      t.tipo === 'extraordinaria' ? t.fecha_programada === iso : SIGO.tareaTocabaEnFecha(t, iso));
+    let clase = 'vacio';
+    let texto = '';
+    if (tareasDia.length > 0) {
+      const todas = tareasDia.every(t => ejSet.has(`${t.id}|${iso}`));
+      clase = todas ? 'ok' : (pasado ? 'falta' : 'vacio');
+      texto = todas || pasado ? '●' : '';
+    }
+    return `<div class="semana-dia ${esHoy ? 'hoy' : clase}">
+      <div class="dia-letra">${letra}</div>
+      <div class="dia-punto">${texto}</div>
+    </div>`;
+  }).join('');
 }
 
 // ── Próximas (mañana) ────────────────────────
 async function renderProximas() {
   const manana = new Date();
   manana.setDate(manana.getDate() + 1);
-  const iso = manana.toISOString().split('T')[0];
+  const iso = SIGO.fechaISO(manana);
   try {
     const tareas = await SIGO.getTareasDelDia(iso);
     const el = document.getElementById('lista-proximas');
@@ -458,7 +470,7 @@ function actualizarBadges(pendientesHoy, deudas, docsNuevos, rutinasAtrasadas) {
 
 // ── Refrescar turno ──────────────────────────
 async function refrescarTurno() {
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = SIGO.hoyISO();
 
   // Label de fecha en separador
   const diasNom = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
@@ -586,7 +598,7 @@ async function confirmarMarcado() {
 
 async function desmarcar(tareaId) {
   if (!confirm('¿Desmarcar esta cuenta? Se eliminará el registro de hoy.')) return;
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = SIGO.hoyISO();
   try {
     await SIGO.eliminarEjecucion(tareaId, hoy);
     SIGO.showToast('↩ Cuenta desmarcada');
@@ -613,18 +625,16 @@ async function init() {
       `Turno · ${profile.grado ? profile.grado + ' ' : ''}${profile.nombre}`;
   }
 
-  // Mostrar cargando mientras genera deudas
-  document.getElementById('resumen-estado').textContent = 'Verificando deudas pendientes...';
-
-  // Primero generar deudas (solo la primera vez del día), luego cargar todo
-  try {
-    const resultado = await SIGO.generarDeudasPendientes();
-    if (resultado.generadas > 0) {
-      SIGO.showToast(`⚠️ ${resultado.generadas} cuentas sin ejecutar detectadas`, 'warning');
-    }
-  } catch (err) {
-    console.warn('generarDeudasPendientes falló:', err.message);
-  }
+  // Cargar todo en paralelo; la generación de deudas (1 vez al día) corre
+  // en segundo plano y solo refresca la lista si detectó deudas nuevas.
+  SIGO.generarDeudasPendientes()
+    .then(resultado => {
+      if (resultado.generadas > 0) {
+        SIGO.showToast(`⚠️ ${resultado.generadas} cuentas sin ejecutar detectadas`, 'warning');
+        refrescarTurno();
+      }
+    })
+    .catch(err => console.warn('generarDeudasPendientes falló:', err.message));
 
   await Promise.all([
     refrescarTurno(),

@@ -4,13 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SIGO — Usuarios</title>
+  <link rel="preconnect" href="https://hkqyzfoxucusboloqitr.supabase.co" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@300;400;500;600&display=swap">
+  <link rel="icon" href="assets/escudo.jpg">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">
-    <img src="assets/escudo.jpg" alt="Carabineros">
+    <img src="assets/escudo.jpg" alt="Carabineros" width="40" height="46">
     <div class="sidebar-logo-text"><span class="title">SIGO</span><span class="subtitle">Gestión Operacional</span></div>
   </div>
   <div class="sidebar-unit">4ª Comisaría — Operaciones</div>
@@ -121,7 +127,7 @@
 </div>
 
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="SIGO.toggleSidebar()"></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="js/supabase.js"></script>
 <script>
 let currentUser = null;

@@ -3,7 +3,6 @@
    Paleta: Carabineros de Chile
    ═══════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@300;400;500;600&display=swap');
 
 :root {
   --verde-oscuro:   #04742c;
@@ -72,10 +71,16 @@ body {
   border-bottom: 1px solid rgba(255,255,255,0.12);
 }
 
+/* El escudo es JPG con fondo blanco: se muestra en su color original
+   sobre una placa blanca (el antiguo filtro invert lo dejaba como un cuadro blanco). */
 .sidebar-logo img {
-  width: 44px; height: 44px;
+  width: 40px; height: 46px;
   object-fit: contain;
-  filter: brightness(0) invert(1);
+  background: #fff;
+  border-radius: 8px;
+  padding: 3px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  flex-shrink: 0;
 }
 
 .sidebar-logo-text {
@@ -665,7 +670,7 @@ tbody td {
   gap: 10px; margin-bottom: 28px;
 }
 
-.login-logo img { width: 72px; }
+.login-logo img { width: 84px; height: auto; }
 
 .login-logo h1 {
   font-family: 'Barlow Condensed', sans-serif;

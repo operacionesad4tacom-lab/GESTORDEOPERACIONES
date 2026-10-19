@@ -10,6 +10,20 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// ─── FECHAS (hora local Chile) ───────────────────
+// toISOString() entrega la fecha en UTC: desde las 21:00 hrs (Chile)
+// devolvía el día siguiente. Estas funciones usan la fecha local.
+function fechaISO(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dia = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dia}`;
+}
+
+function hoyISO() {
+  return fechaISO(new Date());
+}
+
 // ─── AUTH ────────────────────────────────────────
 async function login(email, password) {
   const { data, error } = await db.auth.signInWithPassword({ email, password });
@@ -18,17 +32,26 @@ async function login(email, password) {
 }
 
 async function logout() {
+  try { sessionStorage.removeItem('sigo_profile'); } catch {}
   await db.auth.signOut();
   window.location.href = 'login.html';
 }
 
+// Lee la sesión guardada en el navegador (sin consulta al servidor).
+// La seguridad real la aplica Supabase (RLS) al validar el token en cada consulta.
 async function getUser() {
-  const { data } = await db.auth.getUser();
-  return data?.user || null;
+  const { data } = await db.auth.getSession();
+  return data?.session?.user || null;
 }
 
+// El perfil se guarda en sessionStorage para no consultarlo en cada página.
 async function getUserProfile(userId) {
+  try {
+    const cache = JSON.parse(sessionStorage.getItem('sigo_profile') || 'null');
+    if (cache && cache.id === userId) return cache;
+  } catch {}
   const { data } = await db.from('users').select('*').eq('id', userId).single();
+  try { if (data) sessionStorage.setItem('sigo_profile', JSON.stringify(data)); } catch {}
   return data;
 }
 
@@ -96,6 +119,16 @@ async function getEjecucionesDelDia(fecha) {
   return data || [];
 }
 
+// Ejecuciones de un rango de fechas en una sola consulta (para vistas semanales)
+async function getEjecucionesRango(desde, hasta) {
+  const { data, error } = await db.from('ejecuciones_tarea')
+    .select('tarea_id, fecha')
+    .gte('fecha', desde)
+    .lte('fecha', hasta);
+  if (error) throw error;
+  return data || [];
+}
+
 async function getEjecucionesPorTarea(tareaId, limite = 30) {
   const { data, error } = await db.from('ejecuciones_tarea')
     .select(`*, realizada_por:users!realizada_por(nombre, grado)`)
@@ -107,7 +140,7 @@ async function getEjecucionesPorTarea(tareaId, limite = 30) {
 }
 
 async function registrarEjecucion(tareaId, userId, observaciones = '', fecha = null) {
-  const fechaUso = fecha || new Date().toISOString().split('T')[0];
+  const fechaUso = fecha || hoyISO();
   // Upsert: si ya existe para ese día, actualiza; si no, inserta
   const { data, error } = await db.from('ejecuciones_tarea').upsert([{
     tarea_id: tareaId,
@@ -238,7 +271,7 @@ async function resolverDeuda(deudaId, userId, observaciones = '') {
  * Revisa los últimos 30 días buscando tareas sin ejecución.
  */
 async function generarDeudasPendientes() {
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = hoyISO();
 
   // Verificar si hoy ya fue procesado
   try {
@@ -265,7 +298,7 @@ async function generarDeudasPendientes() {
   for (let i = 30; i >= 1; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    fechas.push(d.toISOString().split('T')[0]);
+    fechas.push(fechaISO(d));
   }
 
   // Cargar ejecuciones de ese período de una sola vez (eficiente)
@@ -324,7 +357,7 @@ async function generarDeudasPendientes() {
  * Elimina el registro de deudas_procesadas para hoy y regenera.
  */
 async function forzarRegeneracionDeudas() {
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = hoyISO();
   await db.from('deudas_procesadas').delete().eq('fecha', hoy);
   return await generarDeudasPendientes();
 }
@@ -465,7 +498,7 @@ async function subirFormato(tareaId, archivo, nombre, userId) {
 
 // ─── AVISOS ──────────────────────────────────────
 async function getAvisos() {
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = hoyISO();
   const { data, error } = await db.from('informacion_permanente')
     .select(`*, publicado_por:users!publicado_por(nombre)`)
     .eq('activa', true)
@@ -502,7 +535,7 @@ async function getUsuarios() {
 
 // ─── MÉTRICAS ────────────────────────────────────
 async function getMetricasHoy() {
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = hoyISO();
   const [tareas, ejecuciones, docs, rutinas] = await Promise.all([
     getTareasDelDia(hoy),
     getEjecucionesDelDia(hoy),
@@ -702,7 +735,7 @@ async function actualizarEstadoGestion(gestionId) {
   const { data: hitos } = await db.from('hitos_gestion')
     .select('estado, fecha').eq('gestion_id', gestionId);
   if (!hitos || !hitos.length) return;
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = hoyISO();
   const todosCompletados = hitos.every(h => h.estado === 'completado');
   const hayVencidos = hitos.some(h =>
     h.estado === 'pendiente' && h.fecha && h.fecha < hoy
@@ -742,7 +775,8 @@ async function getHitosDelDia(fecha) {
 window.SIGO = {
   db, login, logout, getUser, getUserProfile,
   getTareas, getTareasDelDia, crearTarea, actualizarTarea, actualizarEstadoTarea, archivarTarea,
-  getEjecucionesDelDia, getEjecucionesPorTarea, registrarEjecucion, eliminarEjecucion,
+  getEjecucionesDelDia, getEjecucionesRango, getEjecucionesPorTarea, registrarEjecucion, eliminarEjecucion,
+  fechaISO, hoyISO,
   // Sistema de Deudas
   getDeudasPendientes, getDeudasResueltas, resolverDeuda,
   generarDeudasPendientes, forzarRegeneracionDeudas, tareaTocabaEnFecha,
