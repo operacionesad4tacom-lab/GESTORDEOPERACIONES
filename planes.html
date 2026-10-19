@@ -73,6 +73,7 @@
     <div class="tab-bar">
       <button class="tab-btn active" data-tab="planes" onclick="cambiarTab('planes')">🗂️ Planes</button>
       <button class="tab-btn po-solo-admin" data-tab="revisar" onclick="cambiarTab('revisar')">📥 Por revisar <span class="nav-badge" id="cnt-revisar" style="display:none;">0</span></button>
+      <button class="tab-btn" data-tab="calendario" onclick="cambiarTab('calendario')">📅 Calendario</button>
       <button class="tab-btn" data-tab="plantillas" onclick="cambiarTab('plantillas')">📄 Plantillas</button>
     </div>
 
@@ -91,7 +92,29 @@
       </select>
     </div>
 
-    <div class="card">
+    <div id="vista-calendario" class="hidden">
+      <div class="po-cal-layout">
+        <div class="card po-cal-card">
+          <div class="po-cal-nav">
+            <button class="btn btn-outline btn-sm" onclick="moverMes(-1)" aria-label="Mes anterior">‹</button>
+            <h3 id="cal-titulo"></h3>
+            <button class="btn btn-outline btn-sm" onclick="moverMes(1)" aria-label="Mes siguiente">›</button>
+            <button class="btn btn-outline btn-sm" onclick="irHoy()">Hoy</button>
+            <label class="po-check po-solo-admin" style="margin-left:auto;font-size:12px;">
+              <input type="checkbox" id="cal-revisar" onchange="render()"> Incluir “Por revisar”</label>
+          </div>
+          <div class="po-cal-cabecera"><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span></div>
+          <div id="cal-semanas"></div>
+          <div class="po-cal-leyenda" id="cal-leyenda"></div>
+        </div>
+        <div class="card po-cal-lista">
+          <div class="card-header"><h3>Planes del mes</h3></div>
+          <div class="card-body" id="cal-lista"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="vista-lista">
       <div class="table-wrap">
         <table class="po-tabla">
           <thead>
@@ -132,20 +155,148 @@ function textoBusqueda(p) {
     .filter(Boolean).join(' ').toLowerCase();
 }
 
-function render() {
+function pasaFiltros(p) {
   const q = document.getElementById('f-buscar').value.trim().toLowerCase();
   const fe = document.getElementById('f-estado').value;
   const ft = document.getElementById('f-tipo').value;
-  const ahora = new Date();
+  return (!fe || p._estado === fe) && (!ft || p.tipo === ft) && (!q || textoBusqueda(p).includes(q));
+}
+
+// ─── Calendario ───────────────────────────────────
+const COLOR_TIPO = {
+  plan_operativo: '#1a7f45', plan_abreviado: '#2c6fbb', orden_doe: '#7b4fc9',
+  emergencia: '#c0392b', mesa_coordinacion: '#c77c0e', evento_preparacion: '#5d6d7e',
+};
+const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+let calMes = null; // 'aaaa-mm-01'
+
+// Días (aaaa-mm-dd, hora de Chile) en que el plan tiene servicio.
+// Un turno nocturno que termina hasta las 06:00 se muestra solo en su día de inicio.
+function diasPlan(p) {
+  const dias = new Set();
+  const agregar = (ini, fin) => {
+    let d = PO.diaISO(ini);
+    let ultimo = PO.diaISO(fin);
+    if (ultimo > d && PO.fHora(fin) <= '06:00') ultimo = PO.sumarDias(ultimo, -1);
+    for (let n = 0; d <= ultimo && n < 400; d = PO.sumarDias(d, 1), n++) dias.add(d);
+  };
+  if ((p.servicios || []).length) p.servicios.forEach(s => agregar(s.inicio, s.termino));
+  else if (p.inicio && p.termino) agregar(p.inicio, p.termino);
+  else if (p.inicio && !p.hasta_nueva_orden) agregar(p.inicio, p.inicio);
+  return dias;
+}
+
+function moverMes(n) {
+  const [y, m] = calMes.split('-').map(Number);
+  const f = new Date(Date.UTC(y, m - 1 + n, 1));
+  calMes = f.toISOString().slice(0, 10);
+  render();
+}
+function irHoy() { calMes = PO.diaISO(new Date()).slice(0, 8) + '01'; render(); }
+
+function renderCalendario() {
+  const incluirRevisar = document.getElementById('cal-revisar').checked;
+  const hoy = PO.diaISO(new Date());
+  const lista = planes
+    .filter(p => !p.es_plantilla && (p.revision === 'confirmado' || incluirRevisar) && pasaFiltros(p))
+    .map(p => ({ p, dias: diasPlan(p) }));
+  const permanentes = lista.filter(x => !x.dias.size && x.p.hasta_nueva_orden);
+  const fechados = lista.filter(x => x.dias.size);
+
+  const [y, m] = calMes.split('-').map(Number);
+  const primero = calMes;
+  const ultimo = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+  document.getElementById('cal-titulo').textContent = `${MESES[m - 1]} ${y}`;
+
+  // Semanas de lunes a domingo que cubren el mes
+  let inicioSemana = PO.sumarDias(primero, 1 - PO.diaSemana(primero));
+  const semanas = [];
+  while (inicioSemana <= ultimo) {
+    semanas.push(Array.from({ length: 7 }, (_, i) => PO.sumarDias(inicioSemana, i)));
+    inicioSemana = PO.sumarDias(inicioSemana, 7);
+  }
+
+  document.getElementById('cal-semanas').innerHTML = semanas.map(dias => {
+    // Tramos continuos de cada plan dentro de la semana
+    const tramos = [];
+    fechados.forEach(({ p, dias: set }) => {
+      let ini = null;
+      dias.forEach((d, i) => {
+        const tiene = set.has(d);
+        if (tiene && ini === null) ini = i;
+        if ((!tiene || i === 6) && ini !== null) {
+          const fin = tiene ? i : i - 1;
+          tramos.push({ p, ini, fin, sigueAntes: set.has(PO.sumarDias(dias[ini], -1)), sigueDespues: set.has(PO.sumarDias(dias[fin], 1)) });
+          ini = null;
+        }
+      });
+    });
+    // Carriles: el tramo más largo primero, sin superponerse
+    tramos.sort((a, b) => a.ini - b.ini || (b.fin - b.ini) - (a.fin - a.ini));
+    const carriles = [];
+    tramos.forEach(t => {
+      let c = carriles.findIndex(fin => fin < t.ini);
+      if (c === -1) { c = carriles.length; carriles.push(-1); }
+      carriles[c] = t.fin;
+      t.carril = c;
+    });
+    const filas = Math.max(carriles.length, 1);
+
+    return `<div class="po-cal-semana" style="grid-template-rows: 26px repeat(${filas}, 22px) 6px;">
+      ${dias.map((d, i) => `<div class="po-cal-dia ${d.slice(0, 7) !== calMes.slice(0, 7) ? 'fuera' : ''} ${d === hoy ? 'hoy' : ''}"
+          style="grid-column:${i + 1};grid-row:1 / span ${filas + 2};"><span>${+d.slice(8)}</span></div>`).join('')}
+      ${tramos.map(t => {
+        const p = t.p;
+        const nombre = `${p.numero ? 'N°' + p.numero + ' · ' : ''}${p.titulo}`;
+        const dd = [...diasPlan(p)].sort();
+        const titulo = `${nombre}\n${PO.TIPOS[p.tipo]} · ${PO.fFecha(dd[0])} al ${PO.fFecha(dd[dd.length - 1])} · ${PO.ESTADOS[p._estado]?.[0] || ''}`;
+        return `<a class="po-cal-barra ${t.sigueAntes ? 'sigue-antes' : ''} ${t.sigueDespues ? 'sigue-despues' : ''} ${p.revision === 'por_revisar' ? 'revisar' : ''} ${p.cerrado ? 'cerrado' : ''} ${p.prioridad === 'critica' ? 'critica' : ''}"
+            href="planes-ficha.html?id=${p.id}" title="${PO.esc(titulo)}"
+            style="grid-column:${t.ini + 1} / ${t.fin + 2};grid-row:${t.carril + 2};--color:${COLOR_TIPO[p.tipo]};">
+            ${t.sigueAntes ? '‹ ' : ''}${PO.esc(nombre)}</a>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+
+  document.getElementById('cal-leyenda').innerHTML = Object.entries(PO.TIPOS)
+    .map(([k, l]) => `<span><i style="background:${COLOR_TIPO[k]}"></i>${l}</span>`).join('');
+
+  // Lista lateral: planes con servicio en el mes, ordenados por fecha de término
+  const delMes = fechados
+    .map(x => { const dd = [...x.dias].sort(); return { ...x, desde: dd[0], hasta: dd[dd.length - 1] }; })
+    .filter(x => x.desde <= ultimo && x.hasta >= primero)
+    .sort((a, b) => a.hasta.localeCompare(b.hasta));
+  const diasEntre = (a, b) => Math.round((new Date(b + 'T12:00:00Z') - new Date(a + 'T12:00:00Z')) / 86400000);
+  const textoFin = x => {
+    if (x.hasta < hoy) return `Terminó el ${PO.fFecha(x.hasta)}`;
+    if (x.desde > hoy) return `Comienza en ${diasEntre(hoy, x.desde)} día${diasEntre(hoy, x.desde) !== 1 ? 's' : ''}`;
+    const n = diasEntre(hoy, x.hasta);
+    return n === 0 ? 'Termina hoy' : `Termina en ${n} día${n !== 1 ? 's' : ''}`;
+  };
+  const item = (p, rango, extra) => `<a class="po-cal-item" href="planes-ficha.html?id=${p.id}">
+      <i style="background:${COLOR_TIPO[p.tipo]}"></i>
+      <div><div class="po-titulo-plan">${p.numero ? 'N°' + PO.esc(p.numero) + ' · ' : ''}${PO.esc(p.titulo)}</div>
+        <div class="po-sub">${rango}</div>
+        <div class="po-sub"><strong>${extra}</strong> ${PO.badgeEstado(p._estado)}</div></div></a>`;
+  document.getElementById('cal-lista').innerHTML =
+    (delMes.length ? delMes.map(x => item(x.p, `Del ${PO.fFecha(x.desde)} al ${PO.fFecha(x.hasta)}`, textoFin(x))).join('')
+                   : '<div class="po-vacio">Sin planes con servicio en este mes.</div>') +
+    (permanentes.length ? `<div class="po-subtitulo" style="margin-top:14px;">Vigentes hasta nueva orden</div>` +
+      permanentes.map(x => item(x.p, x.p.recurrencia ? PO.esc(x.p.recurrencia) : 'Sin fechas de servicio definidas', 'Permanente')).join('') : '');
+}
+
+function render() {
+  const enCalendario = tab === 'calendario';
+  document.getElementById('vista-calendario').classList.toggle('hidden', !enCalendario);
+  document.getElementById('vista-lista').classList.toggle('hidden', enCalendario);
+  if (enCalendario) { renderCalendario(); return; }
 
   const visibles = planes.filter(p => {
     if (tab === 'plantillas') return p.es_plantilla;
     if (p.es_plantilla) return false;
     if (tab === 'revisar') return p.revision === 'por_revisar';
     return p.revision === 'confirmado';
-  }).filter(p =>
-    (!fe || p._estado === fe) && (!ft || p.tipo === ft) && (!q || textoBusqueda(p).includes(q))
-  );
+  }).filter(pasaFiltros);
 
   const tbody = document.getElementById('lista');
   if (!visibles.length) {
@@ -198,6 +349,7 @@ async function desdePlantilla() {
 async function init() {
   ctx = await PO.iniciarPagina();
   if (!ctx) return;
+  calMes = PO.diaISO(new Date()).slice(0, 8) + '01';
 
   const fe = document.getElementById('f-estado');
   Object.entries(PO.ESTADOS).filter(([k]) => k !== 'por_revisar')

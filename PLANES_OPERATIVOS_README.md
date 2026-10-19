@@ -66,6 +66,14 @@ modificar datos aunque manipule la página, y nadie puede asignarse a sí mismo 
 5. Registrar **plazos**, **indicadores personalizados** y, si los documentos no coinciden, **contradicciones**.
 6. Presionar **✅ Confirmar plan**.
 
+### Calendario
+**Planes Operativos → 📅 Calendario** muestra el mes con cada plan como una barra de color (según su tipo)
+en los días en que tiene servicio, hasta su fecha de término. Clic en una barra abre la ficha.
+A la derecha, **Planes del mes** indica para cada plan desde y hasta qué fecha va, y cuántos días le quedan.
+Los planes vigentes hasta nueva orden sin fechas de servicio aparecen al final de esa lista.
+Los turnos nocturnos que terminan hasta las 06:00 se muestran solo en su día de inicio.
+Los buscadores y filtros de la página también se aplican al calendario.
+
 ### Adiciones (nuevo DOE sobre un plan existente)
 En la ficha, **➕ Registrar adición (DOE)**: indicar el NCU, su fecha y resumen, y modificar solo los datos que
 cambian. El historial del NCU muestra cada cambio como *antes → después*.
