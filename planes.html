@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIGO — Planes Operativos</title>
+  <link rel="preconnect" href="https://hkqyzfoxucusboloqitr.supabase.co" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@300;400;500;600&display=swap">
+  <link rel="icon" href="assets/escudo.jpg">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/planes.css">
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <img src="assets/escudo.jpg" alt="Carabineros" width="40" height="46">
+    <div class="sidebar-logo-text">
+      <span class="title">SIGO</span>
+      <span class="subtitle">Gestión Operacional</span>
+    </div>
+  </div>
+  <div class="sidebar-unit">4ª Comisaría — Operaciones</div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Principal</div>
+    <a class="nav-item" href="index.html"><span class="nav-icon">🏠</span> Vista de Turno</a>
+    <a class="nav-item" href="tareas.html"><span class="nav-icon">📋</span> Tareas y Cuentas</a>
+    <a class="nav-item" href="calendario.html"><span class="nav-icon">📅</span> Calendario</a>
+    <div class="nav-section-label">Gestiones</div>
+    <a class="nav-item" href="gestiones.html"><span class="nav-icon">🔵</span> Gestiones</a>
+    <a class="nav-item active" href="planes.html"><span class="nav-icon">🗂️</span> Planes Operativos</a>
+    <div class="nav-section-label">Documentos</div>
+    <a class="nav-item" href="documentos.html"><span class="nav-icon">📥</span> Documentos DOE</a>
+    <div class="nav-section-label">Control</div>
+    <a class="nav-item" href="rutinas.html"><span class="nav-icon">🔁</span> Rutinas</a>
+    <a class="nav-item" href="formatos.html"><span class="nav-icon">📎</span> Formatos Oficiales</a>
+    <a class="nav-item" href="avisos.html"><span class="nav-icon">📢</span> Avisos</a>
+    <div class="nav-section-label">Admin</div>
+    <a class="nav-item" href="usuarios.html"><span class="nav-icon">👤</span> Usuarios</a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-avatar" id="user-avatar">?</div>
+    <div class="user-info">
+      <div class="name" id="user-name">Cargando...</div>
+      <div class="role" id="user-role">—</div>
+    </div>
+    <button onclick="SIGO.logout()" style="background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:16px;" title="Cerrar sesión">⏻</button>
+  </div>
+</aside>
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="SIGO.toggleSidebar()"></div>
+
+<div class="main">
+  <div class="topbar">
+    <button class="btn-hamburger" onclick="SIGO.toggleSidebar()">☰</button>
+    <div class="topbar-title">Control de Planes Operativos</div>
+  </div>
+
+  <div class="content">
+    <div class="page-header" style="flex-wrap:wrap;gap:10px;">
+      <div>
+        <h2>Planes Operativos</h2>
+        <p>Planes, órdenes por DOE, emergencias, mesas de coordinación y eventos en preparación</p>
+      </div>
+      <div class="po-acciones po-solo-admin">
+        <button class="btn btn-outline" onclick="desdePlantilla()">📄 Desde plantilla</button>
+        <a class="btn btn-primary" href="planes-ficha.html?nuevo=1">＋ Nuevo plan</a>
+      </div>
+    </div>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="planes" onclick="cambiarTab('planes')">🗂️ Planes</button>
+      <button class="tab-btn po-solo-admin" data-tab="revisar" onclick="cambiarTab('revisar')">📥 Por revisar <span class="nav-badge" id="cnt-revisar" style="display:none;">0</span></button>
+      <button class="tab-btn" data-tab="plantillas" onclick="cambiarTab('plantillas')">📄 Plantillas</button>
+    </div>
+
+    <div id="aviso-revisar" class="alert alert-warning hidden" style="font-size:12.5px;">
+      <span>Los planes de esta bandeja <strong>no se activan ni generan alertas de servicio</strong> hasta que se confirman desde su ficha.</span>
+    </div>
+
+    <div class="po-toolbar">
+      <input id="f-buscar" class="form-control po-buscar" type="search"
+             placeholder="Buscar por N° de plan, NCU, título, lugar, persona…" oninput="render()">
+      <select id="f-estado" class="form-control" onchange="render()">
+        <option value="">Todos los estados</option>
+      </select>
+      <select id="f-tipo" class="form-control" onchange="render()">
+        <option value="">Todos los tipos</option>
+      </select>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table class="po-tabla">
+          <thead>
+            <tr>
+              <th>Plan</th>
+              <th class="po-ocultar-movil">Emisor</th>
+              <th>Fechas</th>
+              <th>Estado</th>
+              <th class="po-ocultar-movil">Personal</th>
+              <th class="po-ocultar-movil">NCU</th>
+            </tr>
+          </thead>
+          <tbody id="lista"><tr><td colspan="6" class="po-vacio" style="text-align:center;padding:30px;">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="js/supabase.js"></script>
+<script src="js/planes.js"></script>
+<script>
+let ctx = null;
+let planes = [];
+let tab = 'planes';
+
+function cambiarTab(t) {
+  tab = t;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+  document.getElementById('aviso-revisar').classList.toggle('hidden', t !== 'revisar');
+  render();
+}
+
+function textoBusqueda(p) {
+  return [p.numero, p.titulo, p.mision, p.jefe_servicio, p.supervisor, p.emisor_detalle,
+          p.observaciones, PO.TIPOS[p.tipo], PO.EMISORES[p.emisor], ...(p.ncu || []).map(n => n.ncu)]
+    .filter(Boolean).join(' ').toLowerCase();
+}
+
+function render() {
+  const q = document.getElementById('f-buscar').value.trim().toLowerCase();
+  const fe = document.getElementById('f-estado').value;
+  const ft = document.getElementById('f-tipo').value;
+  const ahora = new Date();
+
+  const visibles = planes.filter(p => {
+    if (tab === 'plantillas') return p.es_plantilla;
+    if (p.es_plantilla) return false;
+    if (tab === 'revisar') return p.revision === 'por_revisar';
+    return p.revision === 'confirmado';
+  }).filter(p =>
+    (!fe || p._estado === fe) && (!ft || p.tipo === ft) && (!q || textoBusqueda(p).includes(q))
+  );
+
+  const tbody = document.getElementById('lista');
+  if (!visibles.length) {
+    const msg = tab === 'revisar' ? 'No hay planes por revisar.'
+              : tab === 'plantillas' ? 'No hay plantillas guardadas. Abre un plan y usa “Guardar como plantilla”.'
+              : 'No hay planes que coincidan con los filtros.';
+    tbody.innerHTML = `<tr><td colspan="6" class="po-vacio" style="text-align:center;padding:30px;">${msg}</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = visibles.map(p => {
+    const contra = (p.contradicciones || []).filter(c => !c.resuelta).length;
+    const rec = PO.sumaRecursos(p.recursos);
+    const ncus = (p.ncu || []).map(n => n.ncu);
+    return `<tr class="po-fila" onclick="location.href='planes-ficha.html?id=${p.id}'">
+      <td>
+        <div class="po-titulo-plan">${p.numero ? `N°${PO.esc(p.numero)} · ` : ''}${PO.esc(p.titulo)}</div>
+        <div class="po-sub">${PO.TIPOS[p.tipo]} ${p.prioridad !== 'normal' ? PO.badgePrioridad(p.prioridad) : ''}
+          ${contra ? `<span class="po-flag">⚠ ${contra} contradicción${contra > 1 ? 'es' : ''}</span>` : ''}</div>
+      </td>
+      <td class="po-ocultar-movil">${p.emisor ? PO.EMISORES[p.emisor] : PO.NE}</td>
+      <td style="white-space:nowrap;">${PO.textoRango(p)}</td>
+      <td>${tab === 'plantillas' ? '<span class="badge badge-archivada">Plantilla</span>' : PO.badgeEstado(p._estado)}</td>
+      <td class="po-ocultar-movil">${rec.especificado ? rec.personal : PO.NE}
+        ${p.personal_total_declarado ? `<div class="po-sub">Declarado: ${p.personal_total_declarado}</div>` : ''}</td>
+      <td class="po-ocultar-movil" style="font-size:12px;">${ncus.length ? ncus.map(PO.esc).join('<br>') : '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function desdePlantilla() {
+  const plantillas = planes.filter(p => p.es_plantilla);
+  if (!plantillas.length) {
+    SIGO.showToast('No hay plantillas guardadas todavía', 'warning');
+    return;
+  }
+  PO.abrirFormulario({
+    titulo: 'Crear plan desde plantilla',
+    intro: '<p class="text-sm text-muted" style="margin-bottom:12px;">Se copian facciones, recursos, indicadores y plazos (sin fechas). El nuevo plan queda en <strong>Por revisar</strong> para completar fechas y responsables.</p>',
+    campos: [{ k: 'plantilla', label: 'Plantilla', tipo: 'select', vacio: false,
+               opciones: Object.fromEntries(plantillas.map(p => [p.id, `${p.numero ? 'N°' + p.numero + ' · ' : ''}${p.titulo}`])) }],
+    textoGuardar: 'Crear plan',
+    alGuardar: async v => {
+      const nuevo = await PO.copiarPlan(v.plantilla, { comoPlantilla: false, userId: ctx.user.id });
+      location.href = `planes-ficha.html?id=${nuevo.id}`;
+    },
+  });
+}
+
+async function init() {
+  ctx = await PO.iniciarPagina();
+  if (!ctx) return;
+
+  const fe = document.getElementById('f-estado');
+  Object.entries(PO.ESTADOS).filter(([k]) => k !== 'por_revisar')
+    .forEach(([k, [l]]) => fe.insertAdjacentHTML('beforeend', `<option value="${k}">${l}</option>`));
+  const ft = document.getElementById('f-tipo');
+  Object.entries(PO.TIPOS).forEach(([k, l]) => ft.insertAdjacentHTML('beforeend', `<option value="${k}">${l}</option>`));
+
+  try {
+    planes = await PO.listarPlanes();
+    const ahora = new Date();
+    planes.forEach(p => { p._estado = PO.estadoPlan(p, ahora); });
+    const n = planes.filter(p => p.revision === 'por_revisar' && !p.es_plantilla).length;
+    const b = document.getElementById('cnt-revisar');
+    b.textContent = n;
+    b.style.display = n ? 'inline' : 'none';
+    if (new URLSearchParams(location.search).get('tab')) cambiarTab(new URLSearchParams(location.search).get('tab'));
+    else render();
+  } catch (e) {
+    document.getElementById('lista').innerHTML =
+      `<tr><td colspan="6"><div class="alert alert-warning">⚠️ No se pudieron cargar los planes: ${PO.esc(e.message)}.
+       Verifique que se ejecutaron los scripts SQL del módulo (ver PLANES_OPERATIVOS_README.md).</div></td></tr>`;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIGO — Ficha del Plan</title>
+  <link rel="preconnect" href="https://hkqyzfoxucusboloqitr.supabase.co" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@300;400;500;600&display=swap">
+  <link rel="icon" href="assets/escudo.jpg">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/planes.css">
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <img src="assets/escudo.jpg" alt="Carabineros" width="40" height="46">
+    <div class="sidebar-logo-text">
+      <span class="title">SIGO</span>
+      <span class="subtitle">Gestión Operacional</span>
+    </div>
+  </div>
+  <div class="sidebar-unit">4ª Comisaría — Operaciones</div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Principal</div>
+    <a class="nav-item" href="index.html"><span class="nav-icon">🏠</span> Vista de Turno</a>
+    <a class="nav-item" href="tareas.html"><span class="nav-icon">📋</span> Tareas y Cuentas</a>
+    <a class="nav-item" href="calendario.html"><span class="nav-icon">📅</span> Calendario</a>
+    <div class="nav-section-label">Gestiones</div>
+    <a class="nav-item" href="gestiones.html"><span class="nav-icon">🔵</span> Gestiones</a>
+    <a class="nav-item active" href="planes.html"><span class="nav-icon">🗂️</span> Planes Operativos</a>
+    <div class="nav-section-label">Documentos</div>
+    <a class="nav-item" href="documentos.html"><span class="nav-icon">📥</span> Documentos DOE</a>
+    <div class="nav-section-label">Control</div>
+    <a class="nav-item" href="rutinas.html"><span class="nav-icon">🔁</span> Rutinas</a>
+    <a class="nav-item" href="formatos.html"><span class="nav-icon">📎</span> Formatos Oficiales</a>
+    <a class="nav-item" href="avisos.html"><span class="nav-icon">📢</span> Avisos</a>
+    <div class="nav-section-label">Admin</div>
+    <a class="nav-item" href="usuarios.html"><span class="nav-icon">👤</span> Usuarios</a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-avatar" id="user-avatar">?</div>
+    <div class="user-info">
+      <div class="name" id="user-name">Cargando...</div>
+      <div class="role" id="user-role">—</div>
+    </div>
+    <button onclick="SIGO.logout()" style="background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:16px;" title="Cerrar sesión">⏻</button>
+  </div>
+</aside>
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="SIGO.toggleSidebar()"></div>
+
+<div class="main">
+  <div class="topbar">
+    <button class="btn-hamburger" onclick="SIGO.toggleSidebar()">☰</button>
+    <div class="topbar-title"><a href="planes.html" style="color:inherit;text-decoration:none;">← Planes Operativos</a></div>
+  </div>
+  <div class="content" id="ficha">
+    <div class="card" style="text-align:center;padding:40px;color:var(--text-muted);">Cargando…</div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="js/supabase.js"></script>
+<script src="js/planes.js"></script>
+<script>
+let ctx = null;
+let plan = null;
+let unidades = [];
+const params = new URLSearchParams(location.search);
+const { esc, val, NE } = PO;
+
+const nombreUnidad = id => unidades.find(u => u.id === id)?.sigla || '';
+const opcionesUnidades = () => Object.fromEntries(unidades.map(u => [u.id, u.nombre]));
+const opcionesEtapas = () => Object.fromEntries((plan?.etapas || []).map(e => [e.id, e.nombre]));
+const btnAdmin = (txt, fn, cls = 'btn-link') => `<button class="${cls} po-solo-admin" onclick="${fn}">${txt}</button>`;
+
+// ─── Datos generales ──────────────────────────────
+const ETIQUETAS = {
+  tipo: 'Tipo', numero: 'N° de plan', titulo: 'Título', emisor: 'Emisor', emisor_detalle: 'Detalle del emisor',
+  fecha_emision: 'Fecha de emisión', mision: 'Misión', inicio: 'Inicio', termino: 'Término',
+  hasta_nueva_orden: 'Hasta nueva orden', recurrencia: 'Recurrencia', jefe_servicio: 'Jefe de servicio',
+  supervisor: 'Supervisor / fiscalizador', prioridad: 'Prioridad', personal_total_declarado: 'Personal total declarado',
+  plan_asociado_id: 'Plan asociado', observaciones: 'Observaciones',
+};
+
+function textoCampo(k, v) {
+  if (v === null || v === undefined || v === '') return 'No especificado';
+  if (k === 'tipo') return PO.TIPOS[v];
+  if (k === 'emisor') return PO.EMISORES[v];
+  if (k === 'prioridad') return PO.PRIORIDADES[v];
+  if (k === 'inicio' || k === 'termino') return PO.fFechaHora(v);
+  if (k === 'fecha_emision') return PO.fFecha(v);
+  if (k === 'hasta_nueva_orden') return v ? 'Sí' : 'No';
+  return String(v);
+}
+
+async function camposGenerales({ conNcu = false, ncuObligatorio = false } = {}) {
+  const { data: otros } = await SIGO.db.from('po_planes').select('id, numero, titulo')
+    .eq('es_plantilla', false).neq('id', plan?.id || '00000000-0000-0000-0000-000000000000').order('titulo');
+  const campos = [];
+  if (conNcu) {
+    campos.push(
+      { k: '_t1', tipo: 'html', html: '<div class="po-subtitulo">Documento (DOE)</div>' },
+      { k: 'ncu', label: ncuObligatorio ? 'NCU *' : 'NCU de origen', ancho: 'third', placeholder: 'Ej.: 264753566' },
+      { k: 'ncu_fecha', label: 'Fecha del DOE', tipo: 'date', ancho: 'third' },
+      { k: 'ncu_resumen', label: 'Resumen', ancho: 'third', placeholder: 'Qué instruye o modifica' },
+      { k: '_t2', tipo: 'html', html: '<div class="po-subtitulo">Datos del plan</div>' },
+    );
+  }
+  campos.push(
+    { k: 'titulo', label: 'Título *', ancho: 'full' },
+    { k: 'tipo', label: 'Tipo', tipo: 'select', opciones: PO.TIPOS, vacio: false, ancho: 'third' },
+    { k: 'numero', label: 'N° de plan', ancho: 'third' },
+    { k: 'prioridad', label: 'Prioridad', tipo: 'select', opciones: PO.PRIORIDADES, vacio: false, ancho: 'third' },
+    { k: 'emisor', label: 'Emisor', tipo: 'select', opciones: PO.EMISORES, ancho: 'third' },
+    { k: 'emisor_detalle', label: 'Detalle del emisor', ancho: 'third' },
+    { k: 'fecha_emision', label: 'Fecha de emisión', tipo: 'date', ancho: 'third' },
+    { k: 'mision', label: 'Misión', tipo: 'textarea', filas: 2 },
+    { k: 'inicio', label: 'Inicio (fecha y hora)', tipo: 'datetime', ancho: 'half' },
+    { k: 'termino', label: 'Término (fecha y hora)', tipo: 'datetime', ancho: 'half' },
+    { k: 'hasta_nueva_orden', tipo: 'check', textoCheck: 'Vigente hasta nueva orden', ancho: 'half' },
+    { k: 'recurrencia', label: 'Recurrencia', ancho: 'half', placeholder: 'Ej.: lunes y martes, 2 semanas al mes' },
+    { k: 'jefe_servicio', label: 'Jefe de servicio', ancho: 'half' },
+    { k: 'supervisor', label: 'Supervisor / fiscalizador', ancho: 'half' },
+    { k: 'personal_total_declarado', label: 'Personal total declarado', tipo: 'number', ancho: 'half',
+      ayuda: 'Total que indica el documento, aunque no venga desglosado' },
+    { k: 'plan_asociado_id', label: 'Plan asociado (eventos en preparación)', tipo: 'select', ancho: 'half',
+      vacio: '— Sin plan asociado —',
+      opciones: Object.fromEntries((otros || []).map(p => [p.id, `${p.numero ? 'N°' + p.numero + ' · ' : ''}${p.titulo}`])) },
+    { k: 'observaciones', label: 'Observaciones', tipo: 'textarea', filas: 3 },
+  );
+  return campos;
+}
+
+const CLAVES_GENERALES = Object.keys(ETIQUETAS);
+
+// Compara valores de la BD con los del formulario (fechas como instantes, no como texto)
+function mismoValor(k, a, b) {
+  if (k === 'hasta_nueva_orden') return !!a === !!b;
+  const vacio = v => v === null || v === undefined || v === '';
+  if (vacio(a) || vacio(b)) return vacio(a) && vacio(b);
+  if (k === 'inicio' || k === 'termino') return new Date(a).getTime() === new Date(b).getTime();
+  return String(a) === String(b);
+}
+const soloGenerales = v => Object.fromEntries(CLAVES_GENERALES.map(k => [k, v[k] ?? (k === 'hasta_nueva_orden' ? false : null)]));
+
+function validarGenerales(v) {
+  if (!v.titulo) throw new Error('El título es obligatorio.');
+  if (v.inicio && v.termino && v.termino < v.inicio) throw new Error('El término no puede ser anterior al inicio.');
+}
+
+// Nuevo plan (formulario manual)
+async function formularioNuevo() {
+  PO.abrirFormulario({
+    titulo: 'Nuevo plan (ingreso manual)',
+    ancho: 820,
+    intro: `<div class="alert alert-info" style="font-size:12.5px;"><span>El plan queda en la bandeja <strong>Por revisar</strong>
+      y no genera alertas de servicio hasta que se confirme. Lo que el documento no indique, déjelo en blanco: quedará como
+      “No especificado”.</span></div>`,
+    campos: await camposGenerales({ conNcu: true }),
+    valores: { tipo: 'orden_doe', prioridad: 'normal' },
+    textoGuardar: 'Crear plan',
+    alGuardar: async v => {
+      validarGenerales(v);
+      const dup = await PO.buscarDuplicados({ ncus: [v.ncu], numero: v.numero, emisor: v.emisor });
+      if (dup.length) {
+        const d = dup[0];
+        const r = await PO.elegir({
+          titulo: 'Posible duplicado',
+          mensaje: `<p style="margin-bottom:8px;">${esc(d.motivo)}:</p>
+            <p><strong>${d.numero ? 'N°' + esc(d.numero) + ' · ' : ''}${esc(d.titulo)}</strong></p>
+            <p class="text-sm text-muted" style="margin-top:10px;">Si este documento modifica o complementa ese plan, regístrelo como adición.</p>`,
+          opciones: [
+            { k: 'adicion', texto: '➕ Agregar como adición', clase: 'btn-primary' },
+            { k: 'crear', texto: 'Crear plan nuevo igualmente' },
+            { k: 'cancelar', texto: 'Cancelar' },
+          ],
+        });
+        if (!r) return false;
+        if (r === 'adicion') {
+          const q = new URLSearchParams({ id: d.id, adicion: '1', ncu: v.ncu || '', fecha: v.ncu_fecha || '', resumen: v.ncu_resumen || '' });
+          location.href = `planes-ficha.html?${q}`;
+          return false;
+        }
+      }
+      const nuevo = await PO.guardar('po_planes', { ...soloGenerales(v), revision: 'por_revisar', creado_por: ctx.user.id });
+      if (v.ncu) {
+        await PO.guardar('po_ncu', { plan_id: nuevo.id, ncu: v.ncu, fecha: v.ncu_fecha, resumen: v.ncu_resumen, es_origen: true });
+      }
+      location.replace(`planes-ficha.html?id=${nuevo.id}`);
+    },
+  });
+}
+
+async function editarGenerales() {
+  PO.abrirFormulario({
+    titulo: 'Editar datos del plan', ancho: 820,
+    campos: await camposGenerales(),
+    valores: plan,
+    alGuardar: async v => {
+      validarGenerales(v);
+      await PO.guardar('po_planes', { id: plan.id, ...soloGenerales(v) });
+      await recargar();
+    },
+  });
+}
+
+// Adición: nuevo DOE que modifica el plan; guarda antes/después
+async function registrarAdicion(pre = {}) {
+  PO.abrirFormulario({
+    titulo: 'Registrar adición (nuevo DOE)', ancho: 820,
+    intro: `<div class="po-banner adicion">ℹ️ Modifique solo los datos que cambia el nuevo DOE. Los cambios quedarán en el
+      historial del NCU (antes → después). Facciones, servicios y plazos se ajustan después en la ficha.</div>`,
+    campos: await camposGenerales({ conNcu: true, ncuObligatorio: true }),
+    valores: { ...plan, ncu: pre.ncu || '', ncu_fecha: pre.fecha || '', ncu_resumen: pre.resumen || '' },
+    textoGuardar: 'Registrar adición',
+    alGuardar: async v => {
+      if (!v.ncu) throw new Error('Indique el NCU del nuevo DOE.');
+      if (plan.ncu.some(n => n.ncu === v.ncu)) throw new Error(`El NCU ${v.ncu} ya está registrado en este plan.`);
+      validarGenerales(v);
+      const nuevos = soloGenerales(v);
+      const cambios = CLAVES_GENERALES
+        .filter(k => !mismoValor(k, plan[k], nuevos[k]))
+        .map(k => ({ campo: ETIQUETAS[k], antes: textoCampo(k, plan[k]), despues: textoCampo(k, nuevos[k]) }));
+      if (cambios.length) await PO.guardar('po_planes', { id: plan.id, ...nuevos });
+      await PO.guardar('po_ncu', {
+        plan_id: plan.id, ncu: v.ncu, fecha: v.ncu_fecha, resumen: v.ncu_resumen, cambios: cambios.length ? cambios : null,
+      });
+      history.replaceState(null, '', `planes-ficha.html?id=${plan.id}`);
+      SIGO.showToast(cambios.length ? `✅ Adición registrada (${cambios.length} cambio${cambios.length > 1 ? 's' : ''})` : '✅ Adición registrada sin cambios en datos generales');
+      await recargar();
+    },
+  });
+}
+
+// ─── Acciones del plan ────────────────────────────
+async function confirmarPlan() {
+  const pend = plan.contradicciones.filter(c => !c.resuelta).length;
+  const r = await PO.elegir({
+    titulo: 'Confirmar plan',
+    mensaje: `<p>Al confirmar, el plan se activa: aparece en las vistas y genera alertas de servicio.</p>
+      ${pend ? `<div class="alert alert-warning" style="margin-top:12px;">⚠️ Tiene ${pend} contradicción${pend > 1 ? 'es' : ''} sin resolver.
+      Quedarán marcadas para revisión.</div>` : ''}`,
+    opciones: [{ k: 'si', texto: '✅ Confirmar', clase: 'btn-primary' }, { k: 'cancelar', texto: 'Cancelar' }],
+  });
+  if (!r) return;
+  await PO.guardar('po_planes', { id: plan.id, revision: 'confirmado', confirmado_por: ctx.user.id, confirmado_en: new Date().toISOString() });
+  SIGO.showToast('✅ Plan confirmado');
+  await recargar();
+}
+
+async function guardarPlantilla() {
+  const p = await PO.copiarPlan(plan.id, { comoPlantilla: true, userId: ctx.user.id });
+  SIGO.showToast('📄 Plantilla guardada');
+  setTimeout(() => { location.href = `planes-ficha.html?id=${p.id}`; }, 800);
+}
+
+async function alternarCierre() {
+  const cerrar = !plan.cerrado;
+  if (!confirm(cerrar ? '¿Cerrar este plan? Dejará de generar alertas.' : '¿Reabrir este plan?')) return;
+  await PO.guardar('po_planes', cerrar
+    ? { id: plan.id, cerrado: true, cerrado_por: ctx.user.id, cerrado_en: new Date().toISOString() }
+    : { id: plan.id, cerrado: false, cerrado_por: null, cerrado_en: null });
+  await recargar();
+}
+
+async function eliminarPlan() {
+  if (!confirm(`¿Eliminar definitivamente "${plan.titulo}"?\nQuedará registro en la auditoría.`)) return;
+  await PO.borrar('po_planes', plan.id);
+  location.replace('planes.html');
+}
+
+// ─── CRUD de tablas hijas ─────────────────────────
+async function borrarFila(tabla, id, texto) {
+  if (!confirm(`¿Eliminar ${texto}?`)) return;
+  try { await PO.borrar(tabla, id); await recargar(); }
+  catch (e) { SIGO.showToast('❌ ' + e.message, 'warning'); }
+}
+
+function editarNcu(id) {
+  const n = plan.ncu.find(x => x.id === id) || {};
+  PO.abrirFormulario({
+    titulo: id ? 'Editar NCU' : 'Agregar NCU relacionado',
+    campos: [
+      { k: 'ncu', label: 'NCU *', ancho: 'half' },
+      { k: 'fecha', label: 'Fecha', tipo: 'date', ancho: 'half' },
+      { k: 'resumen', label: 'Resumen', tipo: 'textarea', filas: 2 },
+      { k: 'es_origen', tipo: 'check', textoCheck: 'Es el NCU de origen' },
+    ],
+    valores: n,
+    alGuardar: async v => {
+      if (!v.ncu) throw new Error('El NCU es obligatorio.');
+      await PO.guardar('po_ncu', { id: id || undefined, plan_id: plan.id, ...v });
+      await recargar();
+    },
+  });
+}
+
+function editarEtapa(id) {
+  const e = plan.etapas.find(x => x.id === id) || { orden: plan.etapas.length + 1 };
+  PO.abrirFormulario({
+    titulo: id ? 'Editar etapa' : 'Nueva etapa',
+    campos: [
+      { k: 'nombre', label: 'Nombre *', ancho: 'half' },
+      { k: 'orden', label: 'Orden', tipo: 'number', ancho: 'half' },
+      { k: 'inicio', label: 'Inicio', tipo: 'datetime', ancho: 'half' },
+      { k: 'termino', label: 'Término', tipo: 'datetime', ancho: 'half' },
+      { k: 'lugar', label: 'Lugar' },
+      { k: 'tactica', label: 'Táctica', tipo: 'textarea', filas: 2 },
+    ],
+    valores: e,
+    alGuardar: async v => {
+      if (!v.nombre) throw new Error('El nombre es obligatorio.');
+      await PO.guardar('po_etapas', { id: id || undefined, plan_id: plan.id, ...v, orden: v.orden ?? 0 });
+      await recargar();
+    },
+  });
+}
+
+function editarFaccion(id) {
+  const f = plan.facciones.find(x => x.id === id) || { orden: plan.facciones.length + 1, apoyo_instituciones: [] };
+  const campos = [
+    { k: 'nombre', label: 'Nombre *', ancho: 'half', placeholder: 'Ej.: Punto de Control N°1' },
+    { k: 'lugar', label: 'Lugar', ancho: 'half', placeholder: 'Complejo, ruta y km, paso, localidad' },
+    { k: 'unidad_cargo_id', label: 'Unidad / destacamento a cargo', tipo: 'select', opciones: opcionesUnidades(), ancho: 'half' },
+    { k: 'jefe_faccion', label: 'Jefe de facción', ancho: 'half' },
+  ];
+  if (plan.etapas.length) campos.push({ k: 'etapa_id', label: 'Etapa', tipo: 'select', opciones: opcionesEtapas(), vacio: '— Sin etapa —', ancho: 'half' });
+  campos.push(
+    { k: 'orden', label: 'Orden', tipo: 'number', ancho: plan.etapas.length ? 'half' : 'full' },
+    { k: 'apoyo_instituciones', label: 'Apoyo de otras instituciones', tipo: 'multi', opciones: PO.INSTITUCIONES },
+    { k: 'apoyo_detalle', label: 'Detalle del apoyo', placeholder: 'Ej.: PDI y SEBV; contacto…' },
+    { k: 'observaciones', label: 'Observaciones', tipo: 'textarea', filas: 2 },
+  );
+  PO.abrirFormulario({
+    titulo: id ? 'Editar facción / punto de control' : 'Nueva facción / punto de control', ancho: 720,
+    campos, valores: f,
+    alGuardar: async v => {
+      if (!v.nombre) throw new Error('El nombre es obligatorio.');
+      await PO.guardar('po_facciones', { id: id || undefined, plan_id: plan.id, ...v, orden: v.orden ?? 0 });
+      await recargar();
+    },
+  });
+}
+
+function editarRecurso(faccionId, id) {
+  const f = plan.facciones.find(x => x.id === faccionId);
+  const r = f.recursos.find(x => x.id === id) || {};
+  PO.abrirFormulario({
+    titulo: `${id ? 'Editar' : 'Agregar'} recursos · ${f.nombre}`, ancho: 760,
+    intro: '<p class="text-sm text-muted" style="margin-bottom:10px;">Deje en blanco lo que el documento no indica (queda “No especificado”). Use 0 solo si el documento dice explícitamente cero.</p>',
+    campos: [
+      { k: 'unidad_id', label: 'Unidad', tipo: 'select', opciones: opcionesUnidades() },
+      { k: '_g', tipo: 'html', html: '<div class="po-subtitulo">Personal por grado</div>' },
+      ...PO.GRADOS.map(([k, l]) => ({ k, label: l, tipo: 'number', ancho: 'sixth' })),
+      { k: '_m', tipo: 'html', html: '<div class="po-subtitulo">Medios logísticos</div>' },
+      ...PO.MEDIOS.map(([k, l]) => ({ k, label: l, tipo: 'number', ancho: 'sixth' })),
+      { k: 'nota', label: 'Nota', placeholder: 'Ej.: cantidad según anexo' },
+    ],
+    valores: r,
+    alGuardar: async v => {
+      await PO.guardar('po_recursos', { id: id || undefined, plan_id: plan.id, faccion_id: faccionId, ...v });
+      await recargar();
+    },
+  });
+}
+
+// Generador de servicios: fechas sueltas o rango + horario (crea una fila por fecha)
+function agregarServicios(faccionId) {
+  const f = faccionId ? plan.facciones.find(x => x.id === faccionId) : null;
+  const campos = [
+    { k: 'modo', label: 'Fechas', tipo: 'select', vacio: false, opciones: { sueltas: 'Fechas sueltas', rango: 'Rango de fechas' }, ancho: 'full' },
+    { k: 'fechas', label: 'Fechas sueltas (dd.mm.aaaa)', tipo: 'textarea', filas: 2, placeholder: '19.10.2026, 20.10.2026' },
+    { k: 'desde', label: 'Desde', tipo: 'date', ancho: 'third' },
+    { k: 'hasta', label: 'Hasta', tipo: 'date', ancho: 'third' },
+    { k: 'dias', label: 'Solo estos días (vacío = todos)', tipo: 'multi', opciones: ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'], ancho: 'third' },
+    { k: '_h', tipo: 'html', html: '<div class="po-subtitulo">Horario</div>' },
+    { k: 'hi', label: 'Hora inicio', tipo: 'time', ancho: 'third' },
+    { k: 'ht', label: 'Hora término', tipo: 'time', ancho: 'third', ayuda: 'Si es menor o igual al inicio, termina al día siguiente' },
+    { k: 'hp', label: 'Hora presentación', tipo: 'time', ancho: 'third' },
+    { k: 'lugar_presentacion', label: 'Lugar de presentación', ancho: 'half' },
+    { k: 'turno', label: 'Turno', ancho: 'half', placeholder: 'Ej.: 1er turno' },
+    { k: 'institucion', label: 'Institución(es) en el turno', ancho: 'half' },
+  ];
+  if (plan.etapas.length) campos.push({ k: 'etapa_id', label: 'Etapa', tipo: 'select', opciones: opcionesEtapas(), vacio: '— Sin etapa —', ancho: 'half' });
+  campos.push(
+    { k: 'hora_por_confirmar', tipo: 'check', textoCheck: 'Hora por confirmar (sin horas: cubre el día completo)' },
+    { k: 'observaciones', label: 'Observaciones' },
+  );
+  PO.abrirFormulario({
+    titulo: `Agregar servicios${f ? ' · ' + f.nombre : ' del plan'}`, ancho: 760,
+    campos, valores: { modo: 'sueltas', etapa_id: f?.etapa_id || null },
+    textoGuardar: 'Crear servicios',
+    alGuardar: async v => {
+      let dias = [];
+      if (v.modo === 'sueltas') {
+        const trozos = (v.fechas || '').split(/[\s,;]+/).filter(Boolean);
+        for (const t of trozos) {
+          const iso = PO.parseFechaCL(t);
+          if (!iso) throw new Error(`Fecha no válida: "${t}". Use dd.mm.aaaa`);
+          dias.push(iso);
+        }
+      } else {
+        if (!v.desde || !v.hasta) throw new Error('Indique desde y hasta.');
+        if (v.hasta < v.desde) throw new Error('"Hasta" es anterior a "Desde".');
+        const filtro = (v.dias || []).map(d => ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].indexOf(d) + 1);
+        for (let d = v.desde; d <= v.hasta; d = PO.sumarDias(d, 1)) {
+          if (!filtro.length || filtro.includes(PO.diaSemana(d))) dias.push(d);
+          if (dias.length > 400) throw new Error('Demasiadas fechas (máx. 400).');
+        }
+      }
+      if (!dias.length) throw new Error('No hay fechas para crear.');
+      if (!v.hi && !v.hora_por_confirmar) throw new Error('Indique la hora de inicio o marque "Hora por confirmar".');
+      const filas = dias.map(d => {
+        const hi = v.hi || '00:00';
+        const ht = v.ht || (v.hi ? null : '23:59');
+        const diaFin = ht && ht <= hi && v.hi ? PO.sumarDias(d, 1) : d;
+        const diaPres = v.hp && v.hi && v.hp > v.hi ? PO.sumarDias(d, -1) : d;
+        return {
+          plan_id: plan.id, faccion_id: faccionId || null, etapa_id: v.etapa_id || null,
+          inicio: PO.deInput(`${d}T${hi}`),
+          termino: PO.deInput(`${diaFin}T${ht || hi}`),
+          presentacion: v.hp ? PO.deInput(`${diaPres}T${v.hp}`) : null,
+          lugar_presentacion: v.lugar_presentacion, turno: v.turno, institucion: v.institucion,
+          hora_por_confirmar: !!v.hora_por_confirmar, observaciones: v.observaciones,
+        };
+      });
+      await PO.guardarVarios('po_servicios', filas);
+      SIGO.showToast(`✅ ${filas.length} servicio${filas.length > 1 ? 's' : ''} creado${filas.length > 1 ? 's' : ''}`);
+      await recargar();
+    },
+  });
+}
+
+function editarServicio(id) {
+  const s = plan.servicios.find(x => x.id === id);
+  PO.abrirFormulario({
+    titulo: 'Editar servicio', ancho: 700,
+    campos: [
+      { k: 'inicio', label: 'Inicio *', tipo: 'datetime', ancho: 'half' },
+      { k: 'termino', label: 'Término *', tipo: 'datetime', ancho: 'half' },
+      { k: 'presentacion', label: 'Presentación', tipo: 'datetime', ancho: 'half' },
+      { k: 'lugar_presentacion', label: 'Lugar de presentación', ancho: 'half' },
+      { k: 'turno', label: 'Turno', ancho: 'half' },
+      { k: 'institucion', label: 'Institución(es)', ancho: 'half' },
+      { k: 'hora_por_confirmar', tipo: 'check', textoCheck: 'Hora por confirmar' },
+      { k: 'observaciones', label: 'Observaciones' },
+    ],
+    valores: s,
+    alGuardar: async v => {
+      if (!v.inicio || !v.termino) throw new Error('Inicio y término son obligatorios.');
+      if (v.termino < v.inicio) throw new Error('El término es anterior al inicio.');
+      await PO.guardar('po_servicios', { id, ...v });
+      await recargar();
+    },
+  });
+}
+
+async function borrarServiciosFaccion(faccionId) {
+  const lista = plan.servicios.filter(s => (s.faccion_id || null) === (faccionId || null));
+  if (!lista.length || !confirm(`¿Eliminar los ${lista.length} servicios de esta sección?`)) return;
+  const { error } = await SIGO.db.from('po_servicios').delete().in('id', lista.map(s => s.id));
+  if (error) { SIGO.showToast('❌ ' + error.message, 'warning'); return; }
+  await recargar();
+}
+
+function editarPlazo(id) {
+  const p = plan.plazos.find(x => x.id === id) || { tipo: 'labor', estado: 'pendiente' };
+  const terminos = [...new Set(plan.servicios.map(s => s.termino))].sort();
+  PO.abrirFormulario({
+    titulo: id ? 'Editar plazo' : 'Nuevo plazo', ancho: 720,
+    campos: [
+      { k: 'tipo', label: 'Tipo', tipo: 'select', opciones: PO.PLAZO_TIPOS, vacio: false, ancho: 'half' },
+      { k: 'vence', label: 'Vence (fecha y hora)', tipo: 'datetime', ancho: 'half' },
+      { k: 'al_termino_servicio', tipo: 'check', textoCheck: '“Inmediatamente una vez finalizado el servicio”', ancho: 'half' },
+      { k: 'servicio_ref', label: 'Calcular desde el término de…', tipo: 'select', ancho: 'half', vacio: '— Usar la fecha indicada —',
+        opciones: Object.fromEntries(terminos.map(t => [t, `Servicio que termina ${PO.fFechaHora(t)}`])) },
+      { k: 'descripcion', label: 'Descripción' },
+      { k: 'destinatario', label: 'Destinatario', ancho: 'half' },
+      { k: 'formato', label: 'Formato exigido', ancho: 'half' },
+    ],
+    valores: p,
+    alGuardar: async v => {
+      const { servicio_ref, ...fila } = v;
+      if (servicio_ref) { fila.vence = servicio_ref; fila.al_termino_servicio = true; }
+      await PO.guardar('po_plazos', { id: id || undefined, plan_id: plan.id, ...fila });
+      await recargar();
+    },
+  });
+}
+
+function cumplirPlazo(id) {
+  const p = plan.plazos.find(x => x.id === id);
+  if (p.estado === 'cumplido') {
+    if (!confirm('¿Volver a marcar este plazo como pendiente?')) return;
+    PO.guardar('po_plazos', { id, estado: 'pendiente', ncu_cumplimiento: null, cumplido_en: null, cumplido_por: null })
+      .then(recargar).catch(e => SIGO.showToast('❌ ' + e.message, 'warning'));
+    return;
+  }
+  PO.abrirFormulario({
+    titulo: 'Marcar plazo como cumplido',
+    campos: [{ k: 'ncu_cumplimiento', label: 'NCU con que se cumplió', placeholder: 'Ej.: 264900000' }],
+    textoGuardar: '✅ Cumplido',
+    alGuardar: async v => {
+      await PO.guardar('po_plazos', { id, estado: 'cumplido', ncu_cumplimiento: v.ncu_cumplimiento,
+        cumplido_en: new Date().toISOString(), cumplido_por: ctx.user.id });
+      await recargar();
+    },
+  });
+}
+
+function editarContradiccion(id) {
+  const c = plan.contradicciones.find(x => x.id === id) || {};
+  PO.abrirFormulario({
+    titulo: id ? 'Editar contradicción' : 'Registrar contradicción', ancho: 680,
+    campos: [
+      { k: 'campo', label: 'Dato en conflicto *', placeholder: 'Ej.: PC N°2 · personal SIP' },
+      { k: 'valor_a', label: 'Valor A', ancho: 'half' }, { k: 'fuente_a', label: 'Fuente A', ancho: 'half', placeholder: 'Ej.: Resumen del plan' },
+      { k: 'valor_b', label: 'Valor B', ancho: 'half' }, { k: 'fuente_b', label: 'Fuente B', ancho: 'half', placeholder: 'Ej.: Anexo / DOE' },
+    ],
+    valores: c,
+    alGuardar: async v => {
+      if (!v.campo) throw new Error('Indique el dato en conflicto.');
+      await PO.guardar('po_contradicciones', { id: id || undefined, plan_id: plan.id, ...v });
+      await recargar();
+    },
+  });
+}
+
+function resolverContradiccion(id) {
+  PO.abrirFormulario({
+    titulo: 'Resolver contradicción',
+    campos: [{ k: 'resolucion', label: 'Resolución adoptada *', tipo: 'textarea', filas: 3,
+               placeholder: 'Ej.: Se confirma con la Subprefectura: 4 PNI. Se corrigen los recursos.' }],
+    textoGuardar: 'Marcar como resuelta',
+    alGuardar: async v => {
+      if (!v.resolucion) throw new Error('Describa cómo se resolvió.');
+      await PO.guardar('po_contradicciones', { id, resuelta: true, resolucion: v.resolucion,
+        resuelta_por: ctx.user.id, resuelta_en: new Date().toISOString() });
+      await recargar();
+    },
+  });
+}
+
+function editarIndicador(id) {
+  const x = plan.indicadores.find(i => i.id === id) || { tipo: 'numero', orden: plan.indicadores.length + 1 };
+  PO.abrirFormulario({
+    titulo: id ? 'Editar indicador' : 'Nuevo indicador personalizado',
+    campos: [
+      { k: 'nombre', label: 'Nombre *', ancho: 'half', placeholder: 'Ej.: % cumplimiento' },
+      { k: 'tipo', label: 'Tipo', tipo: 'select', vacio: false, opciones: { numero: 'Número', porcentaje: 'Porcentaje (numerador / denominador)' }, ancho: 'half' },
+      { k: 'numerador', label: 'Numerador', ancho: 'half', placeholder: 'Ej.: Operativos realizados' },
+      { k: 'denominador', label: 'Denominador', ancho: 'half', placeholder: 'Ej.: Operativos comprometidos' },
+      { k: 'descripcion', label: 'Descripción' },
+      { k: 'orden', label: 'Orden', tipo: 'number', ancho: 'third' },
+    ],
+    valores: x,
+    alGuardar: async v => {
+      if (!v.nombre) throw new Error('El nombre es obligatorio.');
+      await PO.guardar('po_indicadores', { id: id || undefined, plan_id: plan.id, ...v, orden: v.orden ?? 0 });
+      await recargar();
+    },
+  });
+}
+
+// ─── Render ───────────────────────────────────────
+function tablaRecursos(f) {
+  const filas = f.recursos;
+  if (!filas.length) return `<div class="po-vacio">Recursos: ${NE}</div>`;
+  const tot = PO.sumaRecursos(filas);
+  const celda = v => `<td class="num">${v == null ? '<span class="text-muted">—</span>' : v}</td>`;
+  return `<div class="table-wrap"><table class="po-mini">
+    <thead><tr><th>Unidad</th>${PO.GRADOS.map(([, l]) => `<th class="num">${l}</th>`).join('')}<th class="num">Total</th><th>Medios</th><th>Nota</th><th class="po-solo-admin"></th></tr></thead>
+    <tbody>${filas.map(r => {
+      const s = PO.sumaRecursos([r]);
+      return `<tr><td><strong>${r.unidad_id ? esc(nombreUnidad(r.unidad_id)) : NE}</strong></td>
+        ${PO.GRADOS.map(([k]) => celda(r[k])).join('')}
+        <td class="num"><strong>${s.especificado ? s.personal : NE}</strong></td>
+        <td>${PO.textoMedios(s.medios) || '<span class="text-muted">—</span>'}</td>
+        <td style="white-space:normal;font-size:11.5px;">${esc(r.nota || '')}</td>
+        <td class="po-solo-admin">${btnAdmin('✎', `editarRecurso('${f.id}','${r.id}')`)}${btnAdmin('✕', `borrarFila('po_recursos','${r.id}','estos recursos')`, 'btn-link peligro')}</td></tr>`;
+    }).join('')}
+    ${filas.length > 1 ? `<tr style="background:#f6faf7;"><td><strong>Total facción</strong></td><td colspan="${PO.GRADOS.length}"></td>
+      <td class="num"><strong>${tot.especificado ? tot.personal : '—'}</strong></td><td>${PO.textoMedios(tot.medios)}</td><td colspan="2"></td></tr>` : ''}
+    </tbody></table></div>`;
+}
+
+function tablaServicios(lista, faccionId) {
+  if (!lista.length) return `<div class="po-vacio">Fechas y horarios: ${NE}</div>`;
+  const fila = s => `<tr>
+    <td>${PO.fFecha(s.inicio)}</td>
+    <td>${s.hora_por_confirmar ? '<span class="po-flag">Hora por confirmar</span>' : `${PO.fHora(s.inicio)} – ${PO.fHora(s.termino)}${PO.diaISO(s.inicio) !== PO.diaISO(s.termino) ? ` <span class="text-muted">(${PO.fFecha(s.termino)})</span>` : ''}`}</td>
+    <td>${s.presentacion ? PO.fHora(s.presentacion) + (s.lugar_presentacion ? ' · ' + esc(s.lugar_presentacion) : '') : '—'}</td>
+    <td>${esc(s.turno || '')}</td>
+    <td style="white-space:normal;">${esc(s.institucion || '')}${s.observaciones ? `<div class="po-sub">${esc(s.observaciones)}</div>` : ''}</td>
+    <td class="po-solo-admin">${btnAdmin('✎', `editarServicio('${s.id}')`)}${btnAdmin('✕', `borrarFila('po_servicios','${s.id}','este servicio')`, 'btn-link peligro')}</td>
+  </tr>`;
+  const cab = '<thead><tr><th>Fecha</th><th>Horario</th><th>Presentación</th><th>Turno</th><th>Institución / obs.</th><th class="po-solo-admin"></th></tr></thead>';
+  const primeros = lista.slice(0, 8), resto = lista.slice(8);
+  return `<div class="table-wrap"><table class="po-mini">${cab}<tbody>${primeros.map(fila).join('')}</tbody></table></div>
+    ${resto.length ? `<details><summary class="btn-link" style="display:inline-block;margin:6px 0;">Ver ${resto.length} servicios más</summary>
+      <div class="table-wrap"><table class="po-mini"><tbody>${resto.map(fila).join('')}</tbody></table></div></details>` : ''}
+    <div class="po-solo-admin" style="text-align:right;">${btnAdmin('Eliminar todos', `borrarServiciosFaccion(${faccionId ? `'${faccionId}'` : 'null'})`, 'btn-link peligro')}</div>`;
+}
+
+function render() {
+  const p = plan;
+  const ahora = new Date();
+  const estado = p.es_plantilla ? null : PO.estadoPlan(p, ahora);
+  const pendContra = p.contradicciones.filter(c => !c.resuelta);
+  const recPlan = PO.sumaRecursos(p.facciones.flatMap(f => f.recursos));
+  const serviciosPlan = p.servicios.filter(s => !s.faccion_id);
+  document.title = `SIGO — ${p.numero ? 'N°' + p.numero + ' · ' : ''}${p.titulo}`;
+
+  document.getElementById('ficha').innerHTML = `
+    ${p.revision === 'por_revisar' && !p.es_plantilla ? `<div class="po-banner revisar">📥 <span><strong>Por revisar.</strong> Este plan no se activa ni genera alertas de servicio hasta confirmarlo.</span>
+      <button class="btn btn-primary btn-sm po-solo-admin" style="margin-left:auto;" onclick="confirmarPlan()">✅ Confirmar plan</button></div>` : ''}
+    ${p.es_plantilla ? `<div class="po-banner adicion">📄 <span><strong>Plantilla.</strong> No genera servicios ni alertas. Use “Desde plantilla” en la lista de planes para crear un plan nuevo a partir de ella.</span></div>` : ''}
+
+    <div class="po-ficha-head">
+      <div>
+        <div class="po-sub">${PO.TIPOS[p.tipo]}${p.emisor ? ' · ' + PO.EMISORES[p.emisor] : ''}${p.emisor_detalle ? ' (' + esc(p.emisor_detalle) + ')' : ''}</div>
+        <h2>${p.numero ? 'N°' + esc(p.numero) + ' · ' : ''}${esc(p.titulo)}</h2>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+          ${estado ? PO.badgeEstado(estado) : ''} ${PO.badgePrioridad(p.prioridad)}
+          <span class="text-sm text-muted">${PO.textoRango(p)}</span>
+          ${pendContra.length ? `<span class="po-flag">⚠ ${pendContra.length} contradicción${pendContra.length > 1 ? 'es' : ''}</span>` : ''}
+        </div>
+      </div>
+      <div class="po-acciones po-solo-admin">
+        <button class="btn btn-outline btn-sm" onclick="editarGenerales()">✎ Editar datos</button>
+        ${!p.es_plantilla ? `<button class="btn btn-outline btn-sm" onclick="registrarAdicion()">➕ Registrar adición (DOE)</button>
+        <button class="btn btn-outline btn-sm" onclick="guardarPlantilla()">📄 Guardar como plantilla</button>
+        ${p.revision === 'confirmado' ? `<button class="btn btn-outline btn-sm" onclick="alternarCierre()">${p.cerrado ? '↺ Reabrir' : '🔒 Cerrar plan'}</button>` : ''}` : ''}
+        <button class="btn btn-danger btn-sm" onclick="eliminarPlan()">🗑 Eliminar</button>
+      </div>
+    </div>
+
+    ${p.contradicciones.length ? `<div class="card po-seccion"><div class="card-header"><h3>⚠️ Contradicciones</h3>
+      ${btnAdmin('＋ Registrar', 'editarContradiccion()', 'btn btn-outline btn-sm')}</div><div class="card-body">
+      ${p.contradicciones.map(c => `<div class="po-contra ${c.resuelta ? 'resuelta' : ''}">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;"><strong style="flex:1;">${esc(c.campo)}</strong>
+          ${c.resuelta ? '<span class="badge badge-finalizada">Resuelta</span>'
+                       : btnAdmin('Resolver', `resolverContradiccion('${c.id}')`, 'btn btn-primary btn-sm')}
+          ${btnAdmin('✎', `editarContradiccion('${c.id}')`)}${btnAdmin('✕', `borrarFila('po_contradicciones','${c.id}','esta contradicción')`, 'btn-link peligro')}</div>
+        <div class="text-sm" style="margin-top:4px;">${esc(c.fuente_a || 'Fuente A')}: <strong>${val(c.valor_a)}</strong>
+          &nbsp;≠&nbsp; ${esc(c.fuente_b || 'Fuente B')}: <strong>${val(c.valor_b)}</strong></div>
+        ${c.resuelta ? `<div class="po-sub">Resolución: ${esc(c.resolucion)} · ${PO.fFechaHora(c.resuelta_en)}</div>` : ''}
+      </div>`).join('')}</div></div>` : ''}
+
+    <div class="card po-seccion"><div class="card-header"><h3>Datos generales</h3>
+      ${!p.contradicciones.length ? btnAdmin('＋ Registrar contradicción', 'editarContradiccion()', 'btn btn-outline btn-sm') : ''}</div>
+      <div class="card-body"><div class="po-dl">
+        <div><span>N° de plan</span>${val(p.numero)}</div>
+        <div><span>Emisor</span>${p.emisor ? esc(PO.EMISORES[p.emisor]) : NE}</div>
+        <div><span>Fecha de emisión</span>${p.fecha_emision ? PO.fFecha(p.fecha_emision) : NE}</div>
+        <div><span>Inicio</span>${p.inicio ? PO.fFechaHora(p.inicio) : NE}</div>
+        <div><span>Término</span>${p.termino ? PO.fFechaHora(p.termino) : (p.hasta_nueva_orden ? 'Hasta nueva orden' : NE)}</div>
+        <div><span>Recurrencia</span>${val(p.recurrencia)}</div>
+        <div><span>Jefe de servicio</span>${val(p.jefe_servicio)}</div>
+        <div><span>Supervisor / fiscalizador</span>${val(p.supervisor)}</div>
+        <div><span>Personal</span>${recPlan.especificado ? `${recPlan.personal} desglosado` : NE}
+          ${p.personal_total_declarado ? ` · <strong>${p.personal_total_declarado} declarado</strong>` : ''}
+          ${p.personal_total_declarado && recPlan.especificado && recPlan.personal !== p.personal_total_declarado
+            ? `<div class="po-sub">${p.personal_total_declarado - recPlan.personal} sin desglosar por unidad</div>` : ''}</div>
+        <div><span>Medios</span>${PO.textoMedios(recPlan.medios) || NE}</div>
+        ${p.tipo === 'evento_preparacion' ? `<div><span>Plan asociado</span>${p.plan_asociado_id
+          ? `<a href="planes-ficha.html?id=${p.plan_asociado_id}">Ver plan asociado</a>` : '<span class="po-flag rojo">Sin plan asociado</span>'}</div>` : ''}
+        <div class="po-largo"><span>Misión</span>${val(p.mision)}</div>
+        ${p.observaciones ? `<div class="po-largo"><span>Observaciones</span>${esc(p.observaciones).replace(/\n/g, '<br>')}</div>` : ''}
+      </div></div></div>
+
+    <div class="card po-seccion"><div class="card-header"><h3>NCU y adiciones</h3>
+      ${btnAdmin('＋ NCU relacionado', 'editarNcu()', 'btn btn-outline btn-sm')}</div><div class="card-body">
+      ${p.ncu.length ? `<div class="table-wrap"><table class="po-mini"><thead><tr><th>NCU</th><th>Fecha</th><th>Resumen</th><th>Cambios</th><th class="po-solo-admin"></th></tr></thead><tbody>
+        ${p.ncu.map(n => `<tr><td><strong>${esc(n.ncu)}</strong>${n.es_origen ? ' <span class="badge badge-normal">Origen</span>' : ''}</td>
+          <td>${n.fecha ? PO.fFecha(n.fecha) : NE}</td><td style="white-space:normal;">${val(n.resumen)}</td>
+          <td style="white-space:normal;">${(n.cambios || []).map(c => `<div class="po-cambios"><strong>${esc(c.campo)}:</strong> <del>${esc(c.antes)}</del> → <ins>${esc(c.despues)}</ins></div>`).join('') || '<span class="text-muted">—</span>'}</td>
+          <td class="po-solo-admin">${btnAdmin('✎', `editarNcu('${n.id}')`)}${btnAdmin('✕', `borrarFila('po_ncu','${n.id}','este NCU')`, 'btn-link peligro')}</td></tr>`).join('')}
+      </tbody></table></div>` : `<div class="po-vacio">Sin NCU registrado (orden sin documento o NCU ${NE}).</div>`}
+    </div></div>
+
+    <div class="card po-seccion"><div class="card-header"><h3>Etapas / fases</h3>
+      ${btnAdmin('＋ Etapa', 'editarEtapa()', 'btn btn-outline btn-sm')}</div><div class="card-body">
+      ${p.etapas.length ? `<div class="table-wrap"><table class="po-mini"><thead><tr><th>Etapa</th><th>Inicio</th><th>Término</th><th>Lugar</th><th>Táctica</th><th class="po-solo-admin"></th></tr></thead><tbody>
+        ${p.etapas.map(e => `<tr><td><strong>${esc(e.nombre)}</strong></td><td>${e.inicio ? PO.fFechaHora(e.inicio) : NE}</td>
+          <td>${e.termino ? PO.fFechaHora(e.termino) : NE}</td><td style="white-space:normal;">${val(e.lugar)}</td><td style="white-space:normal;">${esc(e.tactica || '')}</td>
+          <td class="po-solo-admin">${btnAdmin('✎', `editarEtapa('${e.id}')`)}${btnAdmin('✕', `borrarFila('po_etapas','${e.id}','esta etapa')`, 'btn-link peligro')}</td></tr>`).join('')}
+      </tbody></table></div>` : '<div class="po-vacio">Sin etapas (opcional).</div>'}
+    </div></div>
+
+    <div class="card po-seccion"><div class="card-header"><h3>Facciones / puntos de control</h3>
+      ${btnAdmin('＋ Facción', 'editarFaccion()', 'btn btn-outline btn-sm')}</div><div class="card-body">
+      ${p.facciones.length ? p.facciones.map(f => {
+        const sv = p.servicios.filter(s => s.faccion_id === f.id);
+        const etapa = p.etapas.find(e => e.id === f.etapa_id);
+        return `<div class="po-faccion">
+          <div class="po-faccion-head"><strong>${esc(f.nombre)}${etapa ? ` <span class="badge badge-asignada">${esc(etapa.nombre)}</span>` : ''}</strong>
+            ${btnAdmin('✎ Editar', `editarFaccion('${f.id}')`)}${btnAdmin('✕', `borrarFila('po_facciones','${f.id}','la facción “${f.nombre.replace(/['"<>&\\]/g, '')}” con sus recursos y servicios')`, 'btn-link peligro')}</div>
+          <div class="po-faccion-body">
+            <div class="po-dl" style="margin-bottom:12px;">
+              <div><span>Lugar</span>${val(f.lugar)}</div>
+              <div><span>Unidad a cargo</span>${f.unidad_cargo_id ? esc(nombreUnidad(f.unidad_cargo_id)) : NE}</div>
+              <div><span>Jefe de facción</span>${val(f.jefe_faccion)}</div>
+              <div><span>Apoyo institucional</span>${(f.apoyo_instituciones || []).length || f.apoyo_detalle
+                ? esc([(f.apoyo_instituciones || []).join(', '), f.apoyo_detalle].filter(Boolean).join(' · ')) : '<span class="text-muted">—</span>'}</div>
+              ${f.observaciones ? `<div class="po-largo"><span>Observaciones</span>${esc(f.observaciones)}</div>` : ''}
+            </div>
+            <div style="display:flex;align-items:center;margin-bottom:4px;"><strong class="text-sm" style="flex:1;">Recursos</strong>
+              ${btnAdmin('＋ Recursos de una unidad', `editarRecurso('${f.id}')`)}</div>
+            ${tablaRecursos(f)}
+            <div style="display:flex;align-items:center;margin:12px 0 4px;"><strong class="text-sm" style="flex:1;">Fechas y horarios (${sv.length})</strong>
+              ${btnAdmin('＋ Servicios', `agregarServicios('${f.id}')`)}</div>
+            ${tablaServicios(sv, f.id)}
+          </div></div>`;
+      }).join('') : `<div class="po-vacio">Sin facciones definidas.</div>`}
+    </div></div>
+
+    ${serviciosPlan.length || !p.facciones.length ? `<div class="card po-seccion"><div class="card-header"><h3>Servicios del plan (sin facción)</h3>
+      ${btnAdmin('＋ Servicios', 'agregarServicios(null)', 'btn btn-outline btn-sm')}</div><div class="card-body">
+      <p class="text-sm text-muted" style="margin-bottom:8px;">Para planes sin facciones (ej.: emergencias): define cuándo está vigente el servicio.</p>
+      ${tablaServicios(serviciosPlan, null)}</div></div>` : ''}
+
+    <div class="card po-seccion"><div class="card-header"><h3>Plazos</h3>
+      ${btnAdmin('＋ Plazo', 'editarPlazo()', 'btn btn-outline btn-sm')}</div><div class="card-body">
+      ${p.plazos.length ? `<div class="table-wrap"><table class="po-mini"><thead><tr><th>Tipo</th><th>Vence</th><th>Situación</th><th>Destinatario / formato</th><th>NCU cumplimiento</th><th class="po-solo-admin"></th></tr></thead><tbody>
+        ${p.plazos.map(z => {
+          const s = PO.semaforoPlazo(z, ahora);
+          return `<tr><td><strong>${PO.PLAZO_TIPOS[z.tipo]}</strong>${z.descripcion ? `<div class="po-sub" style="white-space:normal;max-width:320px;">${esc(z.descripcion)}</div>` : ''}</td>
+            <td>${z.vence ? PO.fFechaHora(z.vence) : NE}${z.al_termino_servicio ? '<div class="po-sub">Al término del servicio</div>' : ''}</td>
+            <td><span class="badge ${s.cls}">${s.texto}</span></td>
+            <td style="white-space:normal;">${esc([z.destinatario, z.formato].filter(Boolean).join(' · ')) || '<span class="text-muted">—</span>'}</td>
+            <td>${esc(z.ncu_cumplimiento || '')}</td>
+            <td class="po-solo-admin">${btnAdmin(z.estado === 'cumplido' ? '↺' : '✅', `cumplirPlazo('${z.id}')`)}${btnAdmin('✎', `editarPlazo('${z.id}')`)}${btnAdmin('✕', `borrarFila('po_plazos','${z.id}','este plazo')`, 'btn-link peligro')}</td></tr>`;
+        }).join('')}
+      </tbody></table></div>` : '<div class="po-vacio">Sin plazos registrados.</div>'}
+    </div></div>
+
+    <div class="card po-seccion"><div class="card-header"><h3>Indicadores personalizados</h3>
+      ${btnAdmin('＋ Indicador', 'editarIndicador()', 'btn btn-outline btn-sm')}</div><div class="card-body">
+      ${p.indicadores.length ? `<div class="table-wrap"><table class="po-mini"><thead><tr><th>Indicador</th><th>Tipo</th><th>Cálculo</th><th class="po-solo-admin"></th></tr></thead><tbody>
+        ${p.indicadores.map(x => `<tr><td><strong>${esc(x.nombre)}</strong>${x.descripcion ? `<div class="po-sub">${esc(x.descripcion)}</div>` : ''}</td>
+          <td>${x.tipo === 'porcentaje' ? 'Porcentaje' : 'Número'}</td>
+          <td style="white-space:normal;">${x.tipo === 'porcentaje' ? `${val(x.numerador)} / ${val(x.denominador)}` : '<span class="text-muted">—</span>'}</td>
+          <td class="po-solo-admin">${btnAdmin('✎', `editarIndicador('${x.id}')`)}${btnAdmin('✕', `borrarFila('po_indicadores','${x.id}','este indicador')`, 'btn-link peligro')}</td></tr>`).join('')}
+      </tbody></table></div>` : '<div class="po-vacio">Sin indicadores personalizados. Los indicadores estándar de labor se registran siempre.</div>'}
+    </div></div>
+
+    <div class="card po-seccion po-solo-admin"><div class="card-header"><h3>Historial de cambios</h3>
+      <button class="btn btn-outline btn-sm" onclick="verAuditoria(this)">Ver auditoría</button></div>
+      <div class="card-body" id="auditoria"><div class="po-vacio">Registro de creación, edición, confirmación y borrado de este plan.</div></div></div>
+  `;
+}
+
+async function verAuditoria(btn) {
+  btn.disabled = true;
+  const [{ data, error }, usuarios] = await Promise.all([
+    SIGO.db.from('po_auditoria').select('*').eq('plan_id', plan.id).order('en', { ascending: false }).limit(60),
+    SIGO.getUsuarios().catch(() => []),
+  ]);
+  const el = document.getElementById('auditoria');
+  if (error) { el.innerHTML = `<div class="alert alert-warning">${esc(error.message)}</div>`; return; }
+  const nombre = id => usuarios.find(u => u.id === id)?.nombre || (id ? 'Usuario' : 'Sistema / SQL');
+  const TABLAS = { po_planes: 'Plan', po_ncu: 'NCU', po_etapas: 'Etapa', po_facciones: 'Facción', po_recursos: 'Recursos',
+    po_servicios: 'Servicio', po_plazos: 'Plazo', po_contradicciones: 'Contradicción', po_indicadores: 'Indicador', po_labor: 'Labor' };
+  const ACC = { insert: 'Creación', update: 'Edición', delete: 'Borrado', confirmacion: 'Confirmación' };
+  el.innerHTML = data.length ? `<div class="table-wrap"><table class="po-mini"><thead><tr><th>Fecha</th><th>Usuario</th><th>Elemento</th><th>Acción</th></tr></thead><tbody>
+    ${data.map(a => `<tr><td>${PO.fFechaHora(a.en)}</td><td>${esc(nombre(a.usuario_id))}</td><td>${TABLAS[a.tabla] || a.tabla}</td><td>${ACC[a.accion] || a.accion}</td></tr>`).join('')}
+    </tbody></table></div>` : '<div class="po-vacio">Sin registros.</div>';
+}
+
+async function recargar() {
+  plan = await PO.obtenerPlan(plan.id);
+  render();
+}
+
+async function init() {
+  ctx = await PO.iniciarPagina();
+  if (!ctx) return;
+  try {
+    unidades = await PO.unidades();
+    if (params.get('nuevo')) {
+      if (!ctx.esAdmin) { location.replace('planes.html'); return; }
+      document.getElementById('ficha').innerHTML = `<div class="card" style="padding:30px;text-align:center;">
+        <p style="margin-bottom:12px;">Ingrese los datos del nuevo plan.</p>
+        <button class="btn btn-primary" onclick="formularioNuevo()">＋ Abrir formulario</button>
+        <a class="btn btn-outline" href="planes.html">Volver</a></div>`;
+      formularioNuevo();
+      return;
+    }
+    const id = params.get('id');
+    if (!id) { location.replace('planes.html'); return; }
+    plan = await PO.obtenerPlan(id);
+    render();
+    if (params.get('adicion') && ctx.esAdmin) {
+      registrarAdicion({ ncu: params.get('ncu'), fecha: params.get('fecha'), resumen: params.get('resumen') });
+    }
+  } catch (e) {
+    document.getElementById('ficha').innerHTML = `<div class="alert alert-warning">⚠️ No se pudo cargar el plan: ${esc(e.message)}</div>
+      <a class="btn btn-outline" href="planes.html">Volver a la lista</a>`;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
