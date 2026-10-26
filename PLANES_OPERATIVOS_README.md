@@ -23,6 +23,7 @@ indica se deja en blanco y se muestra como **“No especificado”**; el sistema
    2. `sql/planes_02_seguridad.sql` — permisos por rol y unidad.
    3. `sql/planes_03_semilla.sql` — *(opcional)* los 8 planes de prueba P1–P8, ya confirmados.
    4. `sql/planes_04_patrullaje_pnp.sql` — patrullaje conjunto con la PNP (DOE NCU 265218358), queda en “Por revisar”.
+   5. `sql/planes_05_centinela_2_0.sql` — Operación Centinela 2.0, Plan N°102 (DOE NCU 265083048), queda en “Por revisar”.
 3. Los scripts se pueden volver a ejecutar sin duplicar datos.
 4. Abrir **Planes Operativos** desde el menú lateral de SIGO.
 
