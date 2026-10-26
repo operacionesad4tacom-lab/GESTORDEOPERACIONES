@@ -664,8 +664,10 @@ function render() {
         <div><span>Supervisor / fiscalizador</span>${val(p.supervisor)}</div>
         <div><span>Personal</span>${recPlan.especificado ? `${recPlan.personal} desglosado` : NE}
           ${p.personal_total_declarado ? ` · <strong>${p.personal_total_declarado} declarado</strong>` : ''}
-          ${p.personal_total_declarado && recPlan.especificado && recPlan.personal !== p.personal_total_declarado
-            ? `<div class="po-sub">${p.personal_total_declarado - recPlan.personal} sin desglosar por unidad</div>` : ''}</div>
+          ${p.personal_total_declarado && recPlan.especificado && recPlan.personal < p.personal_total_declarado
+            ? `<div class="po-sub">${p.personal_total_declarado - recPlan.personal} sin desglosar por unidad</div>` : ''}
+          ${p.personal_total_declarado && recPlan.personal > p.personal_total_declarado
+            ? `<div class="po-sub">La suma por facciones supera el total declarado: parte del personal rota entre facciones o días</div>` : ''}</div>
         <div><span>Medios</span>${PO.textoMedios(recPlan.medios) || NE}</div>
         ${p.tipo === 'evento_preparacion' ? `<div><span>Plan asociado</span>${p.plan_asociado_id
           ? `<a href="planes-ficha.html?id=${p.plan_asociado_id}">Ver plan asociado</a>` : '<span class="po-flag rojo">Sin plan asociado</span>'}</div>` : ''}
