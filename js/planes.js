@@ -41,7 +41,7 @@
     acuse_recibo: 'Acuse de recibo', labor: 'Labor', evaluacion: 'Evaluación',
     informe_semanal: 'Informe semanal', remision_plan: 'Remisión de plan', otro: 'Otro',
   };
-  const INSTITUCIONES = ['PDI','Ejército','Armada','SAG','SII','Aduanas','SUNAT','MTT','SENAPRED','Otra'];
+  const INSTITUCIONES = ['PDI','Ejército','Armada','SAG','SII','Aduanas','SUNAT','PNP','MTT','SENAPRED','Otra'];
   const NE = '<span class="po-ne">No especificado</span>';
 
   // ─── Utilidades ─────────────────────────────────
